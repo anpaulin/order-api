@@ -1,7 +1,7 @@
 package controllers
 
 import models.*
-import services.{OrderService, UpdateOrderRequest as ServiceUpdateRequest}
+import services.OrderService
 import play.api.libs.json.*
 import play.api.mvc.*
 
@@ -34,15 +34,16 @@ class OrderController @Inject()(
   }
 
   def update(id: UUID): Action[JsValue] = Action(parse.json) { request =>
-    request.body.validate[models.UpdateOrderRequest] match {
+    request.body.validate[UpdateOrderRequest] match {
       case JsError(errors)   => BadRequest(jsErrorJson(errors))
       case JsSuccess(req, _) =>
-        svc.update(id, req.toServicePatch) match {
+        svc.update(id, req) match {
           case Right(updated) => Ok(Json.toJson(updated))
           case Left(_)        => NotFound
         }
     }
   }
+
 
   def delete(id: UUID): Action[AnyContent] = Action {
     svc.delete(id) match {

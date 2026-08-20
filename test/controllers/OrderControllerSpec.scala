@@ -1,8 +1,10 @@
 package controllers
 
 import models.*
-import services.{OrderService, UpdateOrderRequest as ServiceUpdateRequest}
+import services.OrderService
 import org.scalatestplus.play.*
+
+
 import org.scalatestplus.play.guice.*
 import org.scalatestplus.mockito.MockitoSugar
 import org.mockito.Mockito.*
@@ -193,7 +195,8 @@ class OrderControllerSpec extends PlaySpec with MockitoSugar {
       val svc = mock[OrderService]
       val id = UUID.randomUUID()
       val updated = mockOrder(id = id, amount = BigDecimal("99.99"), currency = "EUR", txType = TransactionType.Refund)
-      when(svc.update(org.mockito.ArgumentMatchers.eq(id), any[ServiceUpdateRequest])).thenReturn(Right(updated))
+      when(svc.update(org.mockito.ArgumentMatchers.eq(id), any[UpdateOrderRequest])).thenReturn(Right(updated))
+
 
       val app = buildApp(svc)
       running(app) {

@@ -72,15 +72,8 @@ case class UpdateOrderRequest(
   amount: Option[BigDecimal] = None,
   currencyCode: Option[Currency] = None,
   transactionType: Option[TransactionType] = None
-) {
-  def toServicePatch: services.UpdateOrderRequest =
-    services.UpdateOrderRequest(
-      date            = date,
-      amount          = amount,
-      currencyCode    = currencyCode,
-      transactionType = transactionType
-    )
-}
+)
+
 
 // --- JSON codecs ---
 

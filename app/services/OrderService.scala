@@ -1,6 +1,6 @@
 package services
 
-import models.{Order, TransactionType}
+import models.{Order, TransactionType, UpdateOrderRequest}
 
 import java.time.OffsetDateTime
 import java.util.{Currency, UUID}
@@ -21,10 +21,3 @@ trait OrderService {
   def clearStateAndLog(): Unit
 }
 
-/** Lightweight patch representation used by the service layer. */
-case class UpdateOrderRequest(
-  date: Option[OffsetDateTime] = None,
-  amount: Option[BigDecimal] = None,
-  currencyCode: Option[Currency] = None,
-  transactionType: Option[TransactionType] = None
-)

@@ -1,6 +1,7 @@
 package services
 
-import models.{Order, OrderEvent, EventType, TransactionType}
+import models.{EventType, Order, OrderEvent, TransactionType, UpdateOrderRequest}
+
 import repositories.AuditLogRepository
 import play.api.Logging
 

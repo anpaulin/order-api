@@ -54,8 +54,9 @@ class InMemoryOrderServiceSpec extends PlaySpec with MockitoSugar with BeforeAnd
     "modify existing values on update" in {
       val created = service.create(sampleOrder(amount = BigDecimal(1)))
 
-      val patch = services.UpdateOrderRequest(amount = Some(BigDecimal(25)))
+      val patch = UpdateOrderRequest(amount = Some(BigDecimal(25)))
       val result = service.update(created.id, patch)
+
 
       result mustBe a[Right[_, _]]
       result.toOption.get.amount mustBe BigDecimal(25)
@@ -128,8 +129,9 @@ class InMemoryOrderServiceSpec extends PlaySpec with MockitoSugar with BeforeAnd
       doThrow(new RuntimeException("Audit failure")).when(audit).append(any[OrderEvent])
 
       an[RuntimeException] must be thrownBy {
-        service.update(order.id, services.UpdateOrderRequest(amount = Some(BigDecimal(999))))
+        service.update(order.id, UpdateOrderRequest(amount = Some(BigDecimal(999))))
       }
+
 
       service.get(order.id).get.amount mustBe BigDecimal(50)
     }
