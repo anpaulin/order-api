@@ -1,0 +1,33 @@
+# SBT & Build
+target/
+**/target/
+project/target/
+project/project/
+
+# IDEs
+.idea/
+*.iml
+*.iws
+*.ipr
+.bsp/
+.bloop/
+.vscode/
+
+# OS Files
+.DS_Store
+**/.DS_Store
+Thumbs.db
+
+# Logs & Runtime Data
+*.log
+logs/
+**/logs/
+data/*.log
+submission/data/*.log
+
+# Build Outputs & Cache
+.cache/
+.classpath
+.project
+.settings/
+dist/

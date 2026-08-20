@@ -1,0 +1,196 @@
+{
+  "info": {
+    "_postman_id": "a8f1b2c3-4d5e-6f7a-8b9c-0d1e2f3a4b5c",
+    "name": "Order API",
+    "description": "Postman Collection for the Play Framework Order Management API.\n\n### Available Endpoints\n- **POST** `/orders`: Create a new order\n- **GET** `/orders/:id`: Retrieve order by UUID\n- **PATCH** `/orders/:id`: Update existing order fields\n- **DELETE** `/orders/:id`: Delete order by UUID\n- **GET** `/orders/search`: Search and filter orders by currency, transaction type, and date range",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:9000",
+      "type": "string"
+    },
+    {
+      "key": "orderId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Create Order",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 201) {",
+              "    const json = pm.response.json();",
+              "    if (json.id) {",
+              "        pm.collectionVariables.set('orderId', json.id);",
+              "        console.log('Saved orderId:', json.id);",
+              "    }",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"date\": \"2026-08-20T17:00:00Z\",\n  \"amount\": 149.99,\n  \"currencyCode\": \"USD\",\n  \"transactionType\": \"Sale\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/orders",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "orders"
+          ]
+        },
+        "description": "Creates a new order. The response contains the created order along with a `Location` header pointing to `/orders/:id`. The test script automatically captures `id` and stores it in the `orderId` variable."
+      },
+      "response": []
+    },
+    {
+      "name": "Get Order by ID",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/orders/{{orderId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "orders",
+            "{{orderId}}"
+          ]
+        },
+        "description": "Retrieves the order matching the provided UUID."
+      },
+      "response": []
+    },
+    {
+      "name": "Update (Patch) Order",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount\": 199.95,\n  \"transactionType\": \"Refund\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/orders/{{orderId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "orders",
+            "{{orderId}}"
+          ]
+        },
+        "description": "Partially updates an existing order. All fields in the payload (`date`, `amount`, `currencyCode`, `transactionType`) are optional."
+      },
+      "response": []
+    },
+    {
+      "name": "Search / Filter Orders",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/orders/search?currencyCode=USD&transactionType=Sale&startDate=2026-01-01T00:00:00Z&endDate=2026-12-31T23:59:59Z",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "orders",
+            "search"
+          ],
+          "query": [
+            {
+              "key": "currencyCode",
+              "value": "USD",
+              "description": "ISO 4217 currency code (e.g. USD, CAD, EUR)"
+            },
+            {
+              "key": "transactionType",
+              "value": "Sale",
+              "description": "Transaction type ('Sale' or 'Refund')"
+            },
+            {
+              "key": "startDate",
+              "value": "2026-01-01T00:00:00Z",
+              "description": "ISO-8601 start timestamp"
+            },
+            {
+              "key": "endDate",
+              "value": "2026-12-31T23:59:59Z",
+              "description": "ISO-8601 end timestamp"
+            }
+          ]
+        },
+        "description": "Searches and filters orders by criteria. All query parameters are optional."
+      },
+      "response": []
+    },
+    {
+      "name": "Delete Order",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/orders/{{orderId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "orders",
+            "{{orderId}}"
+          ]
+        },
+        "description": "Deletes the order matching the provided UUID and appends an OrderDeleted event to the audit log."
+      },
+      "response": []
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+# Routes
+# This file defines all application routes (Higher priority routes first)
+
+POST    /orders              controllers.OrderController.create
+GET     /orders/search       controllers.OrderController.search(currencyCode: Option[String], transactionType: Option[String], startDate: Option[String], endDate: Option[String])
+GET     /orders/:id          controllers.OrderController.get(id: java.util.UUID)
+
+
+PATCH   /orders/:id          controllers.OrderController.update(id: java.util.UUID)
+DELETE  /orders/:id          controllers.OrderController.delete(id: java.util.UUID)
