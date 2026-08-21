@@ -24,10 +24,10 @@ object OrderSearchQuery {
     new QueryStringBindable[OrderSearchQuery] {
 
       override def bind(key: String, params: Map[String, Seq[String]]): Option[Either[String, OrderSearchQuery]] = {
-        val curResult   = parseParam(params, "currencyCode", parseCurrency)
+        val curResult   = parseParam(params, "currencyCode", Parsers.parseCurrency)
         val txResult    = parseParam(params, "transactionType", TransactionType.fromString)
-        val startResult = parseParam(params, "startDate", parseDate)
-        val endResult   = parseParam(params, "endDate", parseDate)
+        val startResult = parseParam(params, "startDate", Parsers.parseDate)
+        val endResult   = parseParam(params, "endDate", Parsers.parseDate)
 
         val paramErrors = Seq(curResult, txResult, startResult, endResult).flatMap(_.left.toOption)
 
@@ -79,24 +79,6 @@ object OrderSearchQuery {
         ).flatten
         params.mkString("&")
       }
-
-      private def parseCurrency(code: String): Either[String, Currency] = {
-        try {
-          Right(Currency.getInstance(code.toUpperCase))
-        } catch {
-          case _: IllegalArgumentException =>
-            Left(s"Invalid currency code '$code'. Must follow ISO 4217 (e.g., USD, EUR, CAD).")
-        }
-      }
-
-      private def parseDate(s: String): Either[String, OffsetDateTime] = {
-        try {
-          Right(OffsetDateTime.parse(s))
-        } catch {
-          case _: DateTimeParseException =>
-            Left("Invalid date format. Expected ISO-8601, e.g., 2025-11-10T10:00:00Z.")
-        }
-      }
     }
-
 }
+
