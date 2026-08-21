@@ -8,7 +8,7 @@ enum TransactionType {
 
 object TransactionType {
 
-  private val lookup = values.map(v => v.toString.toLowerCase -> v).toMap
+  private val lookup: Map[String, TransactionType] = values.map(v => v.toString.toLowerCase -> v).toMap
 
   def fromString(value: String): Either[String, TransactionType] = {
     lookup.get(value.toLowerCase)

@@ -53,69 +53,19 @@ class OrderController @Inject()(
     }
   }
 
-  def search(
-    currencyCode: Option[String],
-    transactionType: Option[String],
-    startDate: Option[String],
-    endDate: Option[String]
-  ): Action[AnyContent] = Action.async {
-
-    val curResult   = currencyCode.map(parseCurrency)
-    val txResult    = transactionType.map(TransactionType.fromString)
-    val startResult = startDate.map(parseDate)
-    val endResult   = endDate.map(parseDate)
-
-    val paramErrors: Seq[JsObject] = Seq(
-      curResult.filter(_.isLeft).flatMap(_.left.toOption).map(msg => Json.obj("field" -> "currencyCode", "message" -> msg)),
-      txResult.filter(_.isLeft).flatMap(_.left.toOption).map(msg => Json.obj("field" -> "transactionType", "message" -> msg)),
-      startResult.filter(_.isLeft).flatMap(_.left.toOption).map(msg => Json.obj("field" -> "startDate", "message" -> msg)),
-      endResult.filter(_.isLeft).flatMap(_.left.toOption).map(msg => Json.obj("field" -> "endDate", "message" -> msg))
-    ).flatten
-
-    val dateRangeError: Option[JsObject] = for {
-      s <- startResult.flatMap(_.toOption)
-      e <- endResult.flatMap(_.toOption)
-      if s.isAfter(e)
-    } yield Json.obj("field" -> "startDate", "message" -> "startDate must be before endDate")
-
-    val allErrors = paramErrors ++ dateRangeError.toSeq
-
-    if (allErrors.nonEmpty) {
-      val summary = if (allErrors.size == 1) (allErrors.head \ "message").as[String]
-                    else s"Validation failed for ${allErrors.size} query parameters"
-      Future.successful(BadRequest(errorJson("ValidationError", summary, allErrors)))
-    } else {
-      svc.search(
-        currency = curResult.flatMap(_.toOption),
-        txType   = txResult.flatMap(_.toOption),
-        start    = startResult.flatMap(_.toOption),
-        end      = endResult.flatMap(_.toOption)
-      ).map { results =>
-        Ok(Json.toJson(results))
-      }
+  def search(query: OrderSearchQuery): Action[AnyContent] = Action.async {
+    svc.search(
+      currency = query.currencyCode,
+      txType   = query.transactionType,
+      start    = query.startDate,
+      end      = query.endDate
+    ).map { results =>
+      Ok(Json.toJson(results))
     }
   }
-
 
   // --- Helpers ---
 
-  private def parseCurrency(code: String): Either[String, Currency] = {
-    try {
-      Right(Currency.getInstance(code.toUpperCase))
-    } catch {
-      case _: IllegalArgumentException =>
-        Left(s"Invalid currency code '$code'. Must follow ISO 4217 (e.g., USD, EUR, CAD).")
-    }
-  }
-
-  private def parseDate(s: String): Either[String, OffsetDateTime] = {
-    try {
-      Right(OffsetDateTime.parse(s))
-    } catch {
-      case _: DateTimeParseException =>
-        Left("Invalid date format. Expected ISO-8601, e.g., 2025-11-10T10:00:00Z.")
-    }
-  }
 
   private def jsErrorJson(errors: collection.Seq[(JsPath, collection.Seq[JsonValidationError])]): JsObject = {
     val details: Seq[JsObject] = errors.flatMap { case (jsPath, validationErrors) =>
