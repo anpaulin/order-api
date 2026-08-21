@@ -177,23 +177,25 @@ object OrderSimulator {
       .timeout(Duration.ofSeconds(5))
       .build()
 
-    val resp = client.send(req, HttpResponse.BodyHandlers.ofString())
-    if (resp.statusCode() == 201) {
-      totalCreated.incrementAndGet()
-      totalSuccess.incrementAndGet()
+    client.sendAsync(req, HttpResponse.BodyHandlers.ofString()).thenAccept { resp =>
+      if (resp.statusCode() == 201) {
+        totalCreated.incrementAndGet()
+        totalSuccess.incrementAndGet()
 
-      // Extract ID from Location header or JSON body
-      val location = resp.headers().firstValue("Location").orElse("")
-      val id = if (location.startsWith("/orders/")) location.stripPrefix("/orders/")
-               else extractId(resp.body())
+        val location = resp.headers().firstValue("Location").orElse("")
+        val id = if (location.startsWith("/orders/")) location.stripPrefix("/orders/")
+                 else extractId(resp.body())
 
-      if (id.nonEmpty) {
-        activeOrderIds.add(id)
-        // Cap active queue at 5000 to prevent unbounded memory in long runs
-        if (activeOrderIds.size() > 5000) activeOrderIds.poll()
+        if (id.nonEmpty) {
+          activeOrderIds.add(id)
+          if (activeOrderIds.size() > 5000) activeOrderIds.poll()
+        }
+      } else {
+        totalErrors.incrementAndGet()
       }
-    } else {
+    }.exceptionally { _ =>
       totalErrors.incrementAndGet()
+      null
     }
   }
 
@@ -205,7 +207,6 @@ object OrderSimulator {
     val newTxType = txTypes(Random.nextInt(txTypes.length))
     val body = s"""{"amount": $newAmount, "transactionType": "$newTxType"}"""
 
-
     val req = HttpRequest.newBuilder()
       .uri(URI.create(s"$target/orders/${id.get}"))
       .header("Content-Type", "application/json")
@@ -213,14 +214,18 @@ object OrderSimulator {
       .timeout(Duration.ofSeconds(5))
       .build()
 
-    val resp = client.send(req, HttpResponse.BodyHandlers.ofString())
-    if (resp.statusCode() == 200) {
-      totalUpdated.incrementAndGet()
-      totalSuccess.incrementAndGet()
-    } else if (resp.statusCode() == 404) {
-      activeOrderIds.remove(id.get)
-    } else {
+    client.sendAsync(req, HttpResponse.BodyHandlers.ofString()).thenAccept { resp =>
+      if (resp.statusCode() == 200) {
+        totalUpdated.incrementAndGet()
+        totalSuccess.incrementAndGet()
+      } else if (resp.statusCode() == 404) {
+        activeOrderIds.remove(id.get)
+      } else {
+        totalErrors.incrementAndGet()
+      }
+    }.exceptionally { _ =>
       totalErrors.incrementAndGet()
+      null
     }
   }
 
@@ -234,15 +239,19 @@ object OrderSimulator {
       .timeout(Duration.ofSeconds(5))
       .build()
 
-    val resp = client.send(req, HttpResponse.BodyHandlers.ofString())
-    if (resp.statusCode() == 204) {
-      totalDeleted.incrementAndGet()
-      totalSuccess.incrementAndGet()
-      activeOrderIds.remove(id.get)
-    } else if (resp.statusCode() == 404) {
-      activeOrderIds.remove(id.get)
-    } else {
+    client.sendAsync(req, HttpResponse.BodyHandlers.ofString()).thenAccept { resp =>
+      if (resp.statusCode() == 204) {
+        totalDeleted.incrementAndGet()
+        totalSuccess.incrementAndGet()
+        activeOrderIds.remove(id.get)
+      } else if (resp.statusCode() == 404) {
+        activeOrderIds.remove(id.get)
+      } else {
+        totalErrors.incrementAndGet()
+      }
+    }.exceptionally { _ =>
       totalErrors.incrementAndGet()
+      null
     }
   }
 
@@ -256,14 +265,19 @@ object OrderSimulator {
       .timeout(Duration.ofSeconds(5))
       .build()
 
-    val resp = client.send(req, HttpResponse.BodyHandlers.ofString())
-    if (resp.statusCode() == 200) {
-      totalSearched.incrementAndGet()
-      totalSuccess.incrementAndGet()
-    } else {
+    client.sendAsync(req, HttpResponse.BodyHandlers.ofString()).thenAccept { resp =>
+      if (resp.statusCode() == 200) {
+        totalSearched.incrementAndGet()
+        totalSuccess.incrementAndGet()
+      } else {
+        totalErrors.incrementAndGet()
+      }
+    }.exceptionally { _ =>
       totalErrors.incrementAndGet()
+      null
     }
   }
+
 
   private def pickRandomId(): Option[String] = {
     val ids = activeOrderIds.asScala.toIndexedSeq

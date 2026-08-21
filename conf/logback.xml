@@ -7,6 +7,13 @@
         </encoder>
     </appender>
 
+    <appender name="ASYNC_STDOUT" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="STDOUT" />
+        <queueSize>8192</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <neverBlock>true</neverBlock>
+    </appender>
+
     <logger name="play" level="INFO" />
     <logger name="application" level="DEBUG" />
     <logger name="controllers" level="INFO" />
@@ -15,6 +22,7 @@
     <logger name="tools" level="INFO" />
 
     <root level="WARN">
-        <appender-ref ref="STDOUT" />
+        <appender-ref ref="ASYNC_STDOUT" />
     </root>
 </configuration>
+
