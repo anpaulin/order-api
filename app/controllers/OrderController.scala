@@ -119,14 +119,7 @@ class OrderController @Inject()(
 
   private def jsErrorJson(errors: collection.Seq[(JsPath, collection.Seq[JsonValidationError])]): JsObject = {
     val details: Seq[JsObject] = errors.flatMap { case (jsPath, validationErrors) =>
-      val field = jsPath.path match {
-        case Nil   => "body"
-        case nodes => nodes.map {
-          case KeyPathNode(k) => k
-          case IdxPathNode(i) => s"[$i]"
-          case other          => other.toString.stripPrefix("/")
-        }.mkString(".")
-      }
+      val field = formatJsPath(jsPath)
       validationErrors.map { e =>
         val msg = if (e.message == "error.path.missing") "Field is required" else e.message
         Json.obj(
@@ -135,6 +128,7 @@ class OrderController @Inject()(
         )
       }
     }.toSeq
+
 
     val summary = if (details.size == 1) {
       val firstField = (details.head \ "field").as[String]
@@ -147,7 +141,23 @@ class OrderController @Inject()(
     errorJson("ValidationError", summary, details)
   }
 
+  private def formatJsPath(jsPath: JsPath): String = {
+    jsPath.path match {
+      case Nil   => "body"
+      case nodes =>
+        nodes.foldLeft("") {
+          case ("", KeyPathNode(k))  => k
+          case ("", IdxPathNode(i))  => s"[$i]"
+          case (acc, KeyPathNode(k)) => s"$acc.$k"
+          case (acc, IdxPathNode(i)) => s"$acc[$i]"
+          case ("", other)           => other.toString.stripPrefix("/")
+          case (acc, other)          => s"$acc.${other.toString.stripPrefix("/")}"
+        }
+    }
+  }
+
   private def errorJson(error: String, message: String, details: Seq[JsObject] = Seq.empty): JsObject = {
+
     val base = Json.obj(
       "timestamp" -> java.time.OffsetDateTime.now().toString,
       "error"     -> error,
