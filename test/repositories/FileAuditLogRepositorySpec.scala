@@ -20,11 +20,21 @@ class FileAuditLogRepositorySpec extends PlaySpec with ScalaFutures with BeforeA
   private val testFilePath = "./data/test-file-audit.log"
   private val testPath = Paths.get(testFilePath)
 
+  private var currentRepo: FileAuditLogRepository = _
+
   override def beforeEach(): Unit = {
+    if (currentRepo != null) {
+      currentRepo.close()
+      currentRepo = null
+    }
     Files.deleteIfExists(testPath)
   }
 
   override def afterEach(): Unit = {
+    if (currentRepo != null) {
+      currentRepo.close()
+      currentRepo = null
+    }
     Files.deleteIfExists(testPath)
   }
 
@@ -45,8 +55,11 @@ class FileAuditLogRepositorySpec extends PlaySpec with ScalaFutures with BeforeA
 
   private def createRepo(): FileAuditLogRepository = {
     val config = Configuration("app.audit-log.file-path" -> testFilePath)
-    new FileAuditLogRepository(config)
+    val repo = new FileAuditLogRepository(config)
+    currentRepo = repo
+    repo
   }
+
 
   "FileAuditLogRepository" should {
 
