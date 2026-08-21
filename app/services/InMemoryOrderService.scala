@@ -106,13 +106,8 @@ class InMemoryOrderService @Inject()(
       logger.info(s"Replay complete — total orders in memory: ${state.size}")
     }
   }
-
-  override def clearStateAndLog(): Future[Unit] = {
-    audit.clear().map { _ =>
-      state.clear()
-    }
-  }
 }
+
 
 
 

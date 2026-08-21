@@ -30,7 +30,7 @@ class InMemoryOrderServiceSpec extends PlaySpec with MockitoSugar with BeforeAnd
     audit = mock[AuditLogRepository]
     when(audit.readAll()).thenReturn(Future.successful(List.empty))
     when(audit.append(any[OrderEvent])).thenReturn(Future.successful(()))
-    when(audit.clear()).thenReturn(Future.successful(()))
+
 
     val config = Configuration(
       "app.audit-log.file-path" -> "./data/test-audit.log",

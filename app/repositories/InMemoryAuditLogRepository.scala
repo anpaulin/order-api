@@ -21,9 +21,10 @@ class InMemoryAuditLogRepository @Inject()() extends AuditLogRepository {
     Future.successful(events.asScala.toList)
   }
 
-  override def clear(): Future[Unit] = {
+  /** Test helper for resetting in-memory state between tests. */
+  def clear(): Unit = {
     events.clear()
-    Future.successful(())
   }
 }
+
 

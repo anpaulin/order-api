@@ -19,7 +19,7 @@ trait OrderService {
     end: Option[OffsetDateTime]
   ): Future[List[Order]]
   def replayFromAuditLog(): Future[Unit]
-  def clearStateAndLog(): Future[Unit]
 }
+
 
 

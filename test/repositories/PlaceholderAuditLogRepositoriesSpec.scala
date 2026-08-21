@@ -33,7 +33,7 @@ class PlaceholderAuditLogRepositoriesSpec extends PlaySpec with ScalaFutures {
 
   "KafkaAuditLogRepository" should {
 
-    "append, readAll and clear events in simulated topic" in {
+    "append and readAll events in simulated topic" in {
       val config = Configuration(
         "app.audit-log.kafka.bootstrap-servers" -> "localhost:9092",
         "app.audit-log.kafka.topic" -> "test-orders"
@@ -45,15 +45,12 @@ class PlaceholderAuditLogRepositoriesSpec extends PlaySpec with ScalaFutures {
       repo.append(event).futureValue
       repo.readAll().futureValue must have size 1
       repo.readAll().futureValue.head.order.id mustBe event.order.id
-
-      repo.clear().futureValue
-      repo.readAll().futureValue mustBe empty
     }
   }
 
   "MySqlAuditLogRepository" should {
 
-    "append, readAll and clear events in simulated table" in {
+    "append and readAll events in simulated table" in {
       val config = Configuration(
         "app.audit-log.mysql.url" -> "jdbc:mysql://localhost:3306/test_db",
         "app.audit-log.mysql.table" -> "test_audit_logs"
@@ -65,11 +62,9 @@ class PlaceholderAuditLogRepositoriesSpec extends PlaySpec with ScalaFutures {
       repo.append(event).futureValue
       repo.readAll().futureValue must have size 1
       repo.readAll().futureValue.head.order.id mustBe event.order.id
-
-      repo.clear().futureValue
-      repo.readAll().futureValue mustBe empty
     }
   }
+
 
 
   "Module configuration-driven binding" should {

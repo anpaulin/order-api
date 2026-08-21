@@ -55,9 +55,10 @@ class InMemoryAuditLogRepositorySpec extends PlaySpec with ScalaFutures {
       repo.append(sampleEvent()).futureValue
       repo.readAll().futureValue must have size 1
 
-      repo.clear().futureValue
+      repo.clear()
       repo.readAll().futureValue mustBe empty
     }
   }
 }
+
 

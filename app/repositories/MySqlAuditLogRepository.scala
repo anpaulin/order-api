@@ -34,11 +34,6 @@ class MySqlAuditLogRepository @Inject()(config: Configuration) extends AuditLogR
     logger.info(s"[MySQL SELECT] Querying all events from table `$tableName`")
     Future.successful(simulatedTable.asScala.toList)
   }
-
-  override def clear(): Future[Unit] = {
-    logger.info(s"[MySQL TRUNCATE] Truncating table `$tableName`")
-    simulatedTable.clear()
-    Future.successful(())
-  }
 }
+
 

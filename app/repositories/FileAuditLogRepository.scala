@@ -46,12 +46,6 @@ class FileAuditLogRepository @Inject()(
           Json.parse(line).as[OrderEvent]
         }
   }
-
-  override def clear(): Future[Unit] = Future {
-    synchronized {
-      Files.write(logFile, Array.emptyByteArray, StandardOpenOption.TRUNCATE_EXISTING)
-      ()
-    }
-  }
 }
+
 

@@ -51,8 +51,9 @@ The service handles full lifecycle order operations (Create, Read, Update, Delet
    - System state can be reconstructed on restart by replaying events from the audit log.
 
 2. **Decoupled Repositories & Dependency Injection**:
-   - `AuditLogRepository` is defined as a clean `trait` (`append`, `readAll`, `clear`).
+   - `AuditLogRepository` is defined as a clean append-only `trait` (`append`, `readAll`).
    - Implementations are dynamically bound via Google Guice in `Module.scala` based on the `app.audit-log.type` configuration.
+
    - Ready-to-use implementations include `FileAuditLogRepository`, `InMemoryAuditLogRepository`, `KafkaAuditLogRepository` (placeholder), and `MySqlAuditLogRepository` (placeholder).
 
 3. **Strongly-Typed Domain Models & Validation**:

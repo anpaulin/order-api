@@ -34,11 +34,6 @@ class KafkaAuditLogRepository @Inject()(config: Configuration) extends AuditLogR
     logger.info(s"[Kafka Consumer] Consuming all events from topic '$topic'")
     Future.successful(simulatedTopic.asScala.toList)
   }
-
-  override def clear(): Future[Unit] = {
-    logger.info(s"[Kafka Admin] Purging topic '$topic'")
-    simulatedTopic.clear()
-    Future.successful(())
-  }
 }
+
 

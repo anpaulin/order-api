@@ -1,6 +1,7 @@
 package repositories
 
 import models.{EventType, Order, OrderEvent, TransactionType}
+import org.scalatest.BeforeAndAfterEach
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Millis, Seconds, Span}
 import org.scalatestplus.play.PlaySpec
@@ -11,13 +12,21 @@ import java.time.{Instant, OffsetDateTime}
 import java.util.{Currency, UUID}
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class FileAuditLogRepositorySpec extends PlaySpec with ScalaFutures {
+class FileAuditLogRepositorySpec extends PlaySpec with ScalaFutures with BeforeAndAfterEach {
 
   implicit override val patienceConfig: PatienceConfig =
     PatienceConfig(timeout = Span(5, Seconds), interval = Span(50, Millis))
 
   private val testFilePath = "./data/test-file-audit.log"
+  private val testPath = Paths.get(testFilePath)
 
+  override def beforeEach(): Unit = {
+    Files.deleteIfExists(testPath)
+  }
+
+  override def afterEach(): Unit = {
+    Files.deleteIfExists(testPath)
+  }
 
   private def sampleEvent(
     id: UUID = UUID.randomUUID(),
@@ -42,17 +51,12 @@ class FileAuditLogRepositorySpec extends PlaySpec with ScalaFutures {
   "FileAuditLogRepository" should {
 
     "create file if it does not exist" in {
-      val path = Paths.get(testFilePath)
-      Files.deleteIfExists(path)
-
       val repo = createRepo()
-      Files.exists(path) mustBe true
-      repo.clear().futureValue
+      Files.exists(testPath) mustBe true
     }
 
     "append and read back persisted events" in {
       val repo = createRepo()
-      repo.clear().futureValue
 
       val event1 = sampleEvent()
       val event2 = sampleEvent(eventType = EventType.OrderUpdated)
@@ -64,18 +68,8 @@ class FileAuditLogRepositorySpec extends PlaySpec with ScalaFutures {
       events must have size 2
       events.head.order.id mustBe event1.order.id
       events.last.order.id mustBe event2.order.id
-
-      repo.clear().futureValue
-    }
-
-    "clear file contents" in {
-      val repo = createRepo()
-      repo.append(sampleEvent()).futureValue
-      repo.readAll().futureValue must not be empty
-
-      repo.clear().futureValue
-      repo.readAll().futureValue mustBe empty
     }
   }
 }
+
 
