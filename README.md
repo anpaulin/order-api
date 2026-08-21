@@ -175,48 +175,109 @@ Validation errors return `400 Bad Request` with full error accumulation across a
 
 ---
 
-## 🧪 Testing & Verification
+## 🏃 Quick Start: Running the Application
 
-The test suite contains **36 unit tests** across 5 test suites covering controllers, services, repositories, and error paths.
+### 1. Prerequisites
+- **Java 17+** (e.g. Eclipse Adoptium / Temurin)
+- **sbt 1.9+**
+
+### 2. Start the Server
 
 ```bash
-# Run all tests
-sbt test
+# Start the Play development server (runs on port 9000 by default)
+sbt run
 ```
 
-### Test Suites:
-- `OrderControllerSpec`: Validates all HTTP endpoints, header generation, multi-field error accumulation, and query filtering.
-- `InMemoryOrderServiceSpec`: Tests CRUD logic, WAL state consistency, search filtering, and rollback when audit persistence fails.
-- `PlaceholderAuditLogRepositoriesSpec`: Tests Kafka & MySQL placeholder lifecycle and Guice dynamic binding.
+Once started, the API is live at `http://localhost:9000`.
+
+### 3. Verify Health / Test via cURL
+
+```bash
+# Create an order
+curl -i -X POST http://localhost:9000/orders \
+  -H "Content-Type: application/json" \
+  -d '{"amount": 99.50, "currencyCode": "USD", "transactionType": "Sale"}'
+
+# Search orders
+curl -i "http://localhost:9000/orders/search?currencyCode=USD&transactionType=Sale"
+```
+
+---
+
+## 🧪 Testing & Verification
+
+The test suite includes **36 unit and integration tests** across 5 comprehensive test suites covering controllers, services, repositories, validation, and error paths.
+
+```bash
+# Run the complete test suite
+sbt test
+
+# Run a specific test suite
+sbt "testOnly controllers.OrderControllerSpec"
+sbt "testOnly services.InMemoryOrderServiceSpec"
+sbt "testOnly repositories.FileAuditLogRepositorySpec"
+```
+
+### Test Suites Overview:
+- `OrderControllerSpec`: Validates all 5 HTTP endpoints, status codes, header generation, non-blocking `Future` resolution, and multi-field validation error accumulation.
+- `InMemoryOrderServiceSpec`: Tests CRUD logic, asynchronous Write-Ahead Logging (WAL) state sync, search filtering, and atomicity guarantees when audit log persistence fails.
+- `FileAuditLogRepositorySpec`: Tests filesystem persistence, file creation, event formatting, and stream reading.
 - `InMemoryAuditLogRepositorySpec`: Tests thread-safe in-memory event recording.
-- `FileAuditLogRepositorySpec`: Tests file persistence, formatting, and replay.
+- `PlaceholderAuditLogRepositoriesSpec`: Tests simulated Kafka producer/consumer, MySQL table operations, and configuration-driven Guice dynamic DI bindings.
 
 ---
 
 ## 🚦 Traffic Generator & Simulator
 
-A high-performance traffic simulator is included to generate realistic, steady-state load with mixed operations:
+A high-performance, standalone traffic simulator is included to generate a continuous, realistic stream of orders, patches, deletes, and searches against the running server.
+
+### Operation Distribution:
 - **60%** Order Creations (`POST /orders`)
 - **25%** Order Updates (`PATCH /orders/:id`)
 - **10%** Order Deletions (`DELETE /orders/:id`)
 - **5%** Search Queries (`GET /orders/search`)
 
-### Run via SBT:
+### Running the Simulator:
+
+In a separate terminal (while `sbt run` is active):
 
 ```bash
-# Run with default settings (10 reqs/sec against http://localhost:9000)
+# Run with default settings (10 reqs/sec against http://localhost:9000 indefinitely)
 sbt "runMain tools.OrderSimulator"
 
-# Run with custom rate and duration (e.g. 50 reqs/sec for 60 seconds)
+# Run at 50 reqs/sec for a 60-second benchmark
 sbt "runMain tools.OrderSimulator --rate 50 --duration 60 --target http://localhost:9000"
 ```
 
-### CLI Options:
+### Simulator CLI Options:
 | Flag | Description | Default |
 | :--- | :--- | :--- |
-| `--rate <int>` | Target requests per second | `10` |
-| `--target <url>` | Service base URL | `http://localhost:9000` |
-| `--duration <sec>` | Run duration in seconds (`0` = infinite until Ctrl+C) | `0` |
+| `--rate <int>` | Target request throughput in requests/second | `10` |
+| `--target <url>` | Base URL of the Order Service | `http://localhost:9000` |
+| `--duration <sec>` | Run duration in seconds (`0` = infinite until `Ctrl+C`) | `0` |
+
+### Sample Output:
+```
+============================================================
+🚀 Order Service Traffic Simulator
+   Target URL : http://localhost:9000
+   Rate       : 20 reqs/sec
+   Duration   : Unlimited (Ctrl+C to stop)
+============================================================
+[STATS] Throughput:   20.0 req/s | Active IDs:   24 | Created:    24 | Updated:    10 | Deleted:     4 | Errors: 0
+[STATS] Throughput:   20.1 req/s | Active IDs:   48 | Created:    49 | Updated:    21 | Deleted:     8 | Errors: 0
+^C
+============================================================
+📊 Simulation Summary
+   Total Requests Success : 1,200
+   Total Requests Failed  : 0
+   - Created Orders       : 720
+   - Updated Orders       : 300
+   - Deleted Orders       : 120
+   - Search Queries       : 60
+   - Remaining In-Memory  : 600
+============================================================
+```
 
 ---
 
@@ -226,17 +287,7 @@ A complete Postman collection is included in [`order-api.postman_collection.json
 
 ### Features:
 - Pre-configured requests for all 5 endpoints.
-- Auto-extracts created `id` and populates the `{{orderId}}` collection variable.
+- Auto-extracts created `id` from `POST /orders` response into the `{{orderId}}` collection variable.
 - Configurable `{{baseUrl}}` variable (`http://localhost:9000`).
 
----
-
-## 🏃 Running the Application
-
-```bash
-# Start Play development server
-sbt run
-```
-
-Access the service at `http://localhost:9000`.
 
