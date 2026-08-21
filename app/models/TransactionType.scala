@@ -8,21 +8,17 @@ enum TransactionType {
 
 object TransactionType {
 
+  private val lookup = values.map(v => v.toString.toLowerCase -> v).toMap
+
   def fromString(value: String): Either[String, TransactionType] = {
-    values.find(_.toString.equalsIgnoreCase(value))
+    lookup.get(value.toLowerCase)
       .toRight(s"Invalid transactionType '$value'. Must be one of: ${values.mkString(", ")}")
   }
 
   given Format[TransactionType] = Format(
-    Reads { json =>
-      json.validate[String].flatMap { s =>
-        fromString(s).fold(
-          err => JsError(err),
-          tt  => JsSuccess(tt)
-        )
-      }
-    },
+    Reads(_.validate[String].flatMap(s => fromString(s).fold(JsError(_), JsSuccess(_)))),
     Writes(tt => JsString(tt.toString))
   )
 }
+
 
