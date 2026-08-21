@@ -24,26 +24,16 @@ object OrderSearchQuery {
     new QueryStringBindable[OrderSearchQuery] {
 
       override def bind(key: String, params: Map[String, Seq[String]]): Option[Either[String, OrderSearchQuery]] = {
-        val currencyParam = params.get("currencyCode").flatMap(_.headOption).filter(_.nonEmpty)
-        val txTypeParam   = params.get("transactionType").flatMap(_.headOption).filter(_.nonEmpty)
-        val startParam    = params.get("startDate").flatMap(_.headOption).filter(_.nonEmpty)
-        val endParam      = params.get("endDate").flatMap(_.headOption).filter(_.nonEmpty)
+        val curResult   = parseParam(params, "currencyCode", parseCurrency)
+        val txResult    = parseParam(params, "transactionType", TransactionType.fromString)
+        val startResult = parseParam(params, "startDate", parseDate)
+        val endResult   = parseParam(params, "endDate", parseDate)
 
-        val curResult   = currencyParam.map(parseCurrency)
-        val txResult    = txTypeParam.map(TransactionType.fromString)
-        val startResult = startParam.map(parseDate)
-        val endResult   = endParam.map(parseDate)
-
-        val paramErrors: Seq[JsObject] = Seq(
-          curResult.filter(_.isLeft).flatMap(_.left.toOption).map(msg => Json.obj("field" -> "currencyCode", "message" -> msg)),
-          txResult.filter(_.isLeft).flatMap(_.left.toOption).map(msg => Json.obj("field" -> "transactionType", "message" -> msg)),
-          startResult.filter(_.isLeft).flatMap(_.left.toOption).map(msg => Json.obj("field" -> "startDate", "message" -> msg)),
-          endResult.filter(_.isLeft).flatMap(_.left.toOption).map(msg => Json.obj("field" -> "endDate", "message" -> msg))
-        ).flatten
+        val paramErrors = Seq(curResult, txResult, startResult, endResult).flatMap(_.left.toOption)
 
         val dateRangeError: Option[JsObject] = for {
-          s <- startResult.flatMap(_.toOption)
-          e <- endResult.flatMap(_.toOption)
+          s <- startResult.toOption.flatten
+          e <- endResult.toOption.flatten
           if s.isAfter(e)
         } yield Json.obj("field" -> "startDate", "message" -> "startDate must be before endDate")
 
@@ -61,11 +51,22 @@ object OrderSearchQuery {
           Some(Left(Json.stringify(errJson)))
         } else {
           Some(Right(OrderSearchQuery(
-            currencyCode    = curResult.flatMap(_.toOption),
-            transactionType = txResult.flatMap(_.toOption),
-            startDate       = startResult.flatMap(_.toOption),
-            endDate         = endResult.flatMap(_.toOption)
+            currencyCode    = curResult.toOption.flatten,
+            transactionType = txResult.toOption.flatten,
+            startDate       = startResult.toOption.flatten,
+            endDate         = endResult.toOption.flatten
           )))
+        }
+      }
+
+      private def parseParam[T](
+        params: Map[String, Seq[String]],
+        key: String,
+        parser: String => Either[String, T]
+      ): Either[JsObject, Option[T]] = {
+        params.get(key).flatMap(_.headOption).filter(_.nonEmpty) match {
+          case Some(raw) => parser(raw).left.map(msg => Json.obj("field" -> key, "message" -> msg)).map(Some(_))
+          case None      => Right(None)
         }
       }
 
@@ -97,4 +98,5 @@ object OrderSearchQuery {
         }
       }
     }
+
 }
