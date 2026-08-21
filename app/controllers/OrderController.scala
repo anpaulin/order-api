@@ -142,19 +142,11 @@ class OrderController @Inject()(
   }
 
   private def formatJsPath(jsPath: JsPath): String = {
-    jsPath.path match {
-      case Nil   => "body"
-      case nodes =>
-        nodes.foldLeft("") {
-          case ("", KeyPathNode(k))  => k
-          case ("", IdxPathNode(i))  => s"[$i]"
-          case (acc, KeyPathNode(k)) => s"$acc.$k"
-          case (acc, IdxPathNode(i)) => s"$acc[$i]"
-          case ("", other)           => other.toString.stripPrefix("/")
-          case (acc, other)          => s"$acc.${other.toString.stripPrefix("/")}"
-        }
-    }
+    val path = jsPath.toJsonString.stripPrefix("obj.").stripPrefix(".")
+    if (path.isEmpty || path == "obj") "body" else path
   }
+
+
 
   private def errorJson(error: String, message: String, details: Seq[JsObject] = Seq.empty): JsObject = {
 
