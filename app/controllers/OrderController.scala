@@ -2,6 +2,7 @@ package controllers
 
 import models.*
 import services.OrderService
+import play.api.Logging
 import play.api.libs.json.*
 import play.api.mvc.*
 
@@ -15,13 +16,17 @@ import scala.concurrent.{ExecutionContext, Future}
 class OrderController @Inject()(
   svc: OrderService,
   val controllerComponents: ControllerComponents
-)(implicit ec: ExecutionContext) extends BaseController {
+)(implicit ec: ExecutionContext) extends BaseController with Logging {
 
   def create: Action[JsValue] = Action.async(parse.json) { request =>
     request.body.validate[CreateOrderRequest] match {
-      case JsError(errors)   => Future.successful(BadRequest(jsErrorJson(errors)))
+      case JsError(errors) =>
+        logger.warn(s"[OrderController] POST /orders - validation failed: ${errors.size} error(s)")
+        Future.successful(BadRequest(jsErrorJson(errors)))
       case JsSuccess(req, _) =>
+        logger.info(s"[OrderController] POST /orders - amount=${req.amount}, currency=${req.currencyCode}, type=${req.transactionType}")
         svc.create(req.toOrder).map { created =>
+          logger.info(s"[OrderController] POST /orders - created order ${created.id}")
           Created(Json.toJson(created))
             .withHeaders("Location" -> s"/orders/${created.id}")
         }
@@ -29,40 +34,58 @@ class OrderController @Inject()(
   }
 
   def get(id: UUID): Action[AnyContent] = Action.async {
+    logger.info(s"[OrderController] GET /orders/$id")
     svc.get(id).map {
       case Some(order) => Ok(Json.toJson(order))
-      case None        => NotFound
+      case None =>
+        logger.warn(s"[OrderController] GET /orders/$id - not found")
+        NotFound
     }
   }
 
   def update(id: UUID): Action[JsValue] = Action.async(parse.json) { request =>
     request.body.validate[UpdateOrderRequest] match {
-      case JsError(errors)   => Future.successful(BadRequest(jsErrorJson(errors)))
+      case JsError(errors) =>
+        logger.warn(s"[OrderController] PATCH /orders/$id - validation failed: ${errors.size} error(s)")
+        Future.successful(BadRequest(jsErrorJson(errors)))
       case JsSuccess(req, _) =>
+        logger.info(s"[OrderController] PATCH /orders/$id - patch: amount=${req.amount}, currency=${req.currencyCode}, type=${req.transactionType}")
         svc.update(id, req).map {
-          case Right(updated) => Ok(Json.toJson(updated))
-          case Left(_)        => NotFound
+          case Right(updated) =>
+            logger.info(s"[OrderController] PATCH /orders/$id - successfully updated")
+            Ok(Json.toJson(updated))
+          case Left(_) =>
+            logger.warn(s"[OrderController] PATCH /orders/$id - not found")
+            NotFound
         }
     }
   }
 
   def delete(id: UUID): Action[AnyContent] = Action.async {
+    logger.info(s"[OrderController] DELETE /orders/$id")
     svc.delete(id).map {
-      case Right(_) => NoContent
-      case Left(_)  => NotFound
+      case Right(_) =>
+        logger.info(s"[OrderController] DELETE /orders/$id - successfully deleted")
+        NoContent
+      case Left(_) =>
+        logger.warn(s"[OrderController] DELETE /orders/$id - not found")
+        NotFound
     }
   }
 
   def search(query: OrderSearchQuery): Action[AnyContent] = Action.async {
+    logger.info(s"[OrderController] GET /orders/search - currency=${query.currencyCode}, type=${query.transactionType}, start=${query.startDate}, end=${query.endDate}")
     svc.search(
       currency = query.currencyCode,
       txType   = query.transactionType,
       start    = query.startDate,
       end      = query.endDate
     ).map { results =>
+      logger.info(s"[OrderController] GET /orders/search - returning ${results.size} order(s)")
       Ok(Json.toJson(results))
     }
   }
+
 
   // --- Helpers ---
 

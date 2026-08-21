@@ -21,6 +21,7 @@ class InMemoryOrderService @Inject()(
 
   // Replay on startup if configured
   if (config.get[Boolean]("app.startup.replay-audit")) {
+    logger.info("[OrderService] Startup: replaying events from audit log...")
     replayFromAuditLog()
   }
 
@@ -30,20 +31,27 @@ class InMemoryOrderService @Inject()(
     val created = order.copy(id = id, date = date)
     val event   = OrderEvent(EventType.OrderCreated, created, Instant.now())
 
+    logger.info(s"[OrderService] [CREATE] Persisting order ${created.id} (amount=${created.amount} ${created.currencyCode}, type=${created.transactionType}) to audit log")
+
     // WAL: Append to audit log first; mutate state strictly after append succeeds
     audit.append(event).map { _ =>
       state.put(created.id, created)
+      logger.info(s"[OrderService] [CREATE] Order ${created.id} committed to in-memory state (active orders: ${state.size})")
       created
     }
   }
 
   override def get(id: UUID): Future[Option[Order]] = {
-    Future.successful(Option(state.get(id)))
+    val result = Option(state.get(id))
+    logger.debug(s"[OrderService] [GET] Order $id => ${if (result.isDefined) "Found" else "Not Found"}")
+    Future.successful(result)
   }
 
   override def update(id: UUID, patch: UpdateOrderRequest): Future[Either[String, Order]] = {
     Option(state.get(id)) match {
-      case None => Future.successful(Left(s"Order not found: $id"))
+      case None =>
+        logger.warn(s"[OrderService] [UPDATE] Order $id not found")
+        Future.successful(Left(s"Order not found: $id"))
       case Some(existing) =>
         val updated = existing.copy(
           date            = patch.date.getOrElse(existing.date),
@@ -53,9 +61,12 @@ class InMemoryOrderService @Inject()(
         )
         val event = OrderEvent(EventType.OrderUpdated, updated, Instant.now())
 
+        logger.info(s"[OrderService] [UPDATE] Persisting update for order $id to audit log (amount: ${existing.amount} -> ${updated.amount}, type: ${existing.transactionType} -> ${updated.transactionType})")
+
         // WAL: Append to audit log first; mutate state strictly after append succeeds
         audit.append(event).map { _ =>
           state.put(updated.id, updated)
+          logger.info(s"[OrderService] [UPDATE] Order $id update committed to in-memory state")
           Right(updated)
         }
     }
@@ -63,13 +74,18 @@ class InMemoryOrderService @Inject()(
 
   override def delete(id: UUID): Future[Either[String, Unit]] = {
     Option(state.get(id)) match {
-      case None => Future.successful(Left(s"Order not found: $id"))
+      case None =>
+        logger.warn(s"[OrderService] [DELETE] Order $id not found")
+        Future.successful(Left(s"Order not found: $id"))
       case Some(existing) =>
         val event = OrderEvent(EventType.OrderDeleted, existing, Instant.now())
+
+        logger.info(s"[OrderService] [DELETE] Persisting deletion of order $id to audit log")
 
         // WAL: Append to audit log first; remove from state strictly after append succeeds
         audit.append(event).map { _ =>
           state.remove(existing.id)
+          logger.info(s"[OrderService] [DELETE] Order $id removed from in-memory state (active orders: ${state.size})")
           Right(())
         }
     }
@@ -81,18 +97,21 @@ class InMemoryOrderService @Inject()(
     start: Option[OffsetDateTime],
     end: Option[OffsetDateTime]
   ): Future[List[Order]] = {
-    Future.successful(
-      state.values().asScala.toList
-        .filter(o => currency.forall(_ == o.currencyCode))
-        .filter(o => txType.forall(_ == o.transactionType))
-        .filter(o => start.forall(s => !o.date.isBefore(s)))
-        .filter(o => end.forall(e => !o.date.isAfter(e)))
-        .sortBy(_.date)
-    )
+    val results = state.values().asScala.toList
+      .filter(o => currency.forall(_ == o.currencyCode))
+      .filter(o => txType.forall(_ == o.transactionType))
+      .filter(o => start.forall(s => !o.date.isBefore(s)))
+      .filter(o => end.forall(e => !o.date.isAfter(e)))
+      .sortBy(_.date)
+
+    logger.debug(s"[OrderService] [SEARCH] Matched ${results.size} order(s)")
+    Future.successful(results)
   }
 
   override def replayFromAuditLog(): Future[Unit] = {
+    logger.info("[OrderService] [REPLAY] Replaying audit log to reconstruct state...")
     audit.readAll().map { events =>
+
       state.clear()
       events.foreach { event =>
         logger.debug(s"Replaying event: $event")

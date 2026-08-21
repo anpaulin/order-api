@@ -1,6 +1,7 @@
 package repositories
 
 import models.OrderEvent
+import play.api.Logging
 
 import java.util.concurrent.CopyOnWriteArrayList
 import javax.inject.{Inject, Singleton}
@@ -8,16 +9,18 @@ import scala.concurrent.Future
 import scala.jdk.CollectionConverters.*
 
 @Singleton
-class InMemoryAuditLogRepository @Inject()() extends AuditLogRepository {
+class InMemoryAuditLogRepository @Inject()() extends AuditLogRepository with Logging {
 
   private val events = new CopyOnWriteArrayList[OrderEvent]()
 
   override def append(event: OrderEvent): Future[Unit] = {
+    logger.info(s"[InMemoryAuditLog] Appending event '${event.eventType}' for order ${event.order.id} (total recorded events: ${events.size + 1})")
     events.add(event)
     Future.successful(())
   }
 
   override def readAll(): Future[List[OrderEvent]] = {
+    logger.info(s"[InMemoryAuditLog] Reading all recorded events (total: ${events.size})")
     Future.successful(events.asScala.toList)
   }
 
@@ -26,5 +29,6 @@ class InMemoryAuditLogRepository @Inject()() extends AuditLogRepository {
     events.clear()
   }
 }
+
 
 

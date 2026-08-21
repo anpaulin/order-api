@@ -1,6 +1,7 @@
 package repositories
 
 import models.OrderEvent
+import play.api.Logging
 import play.api.libs.json.Json
 
 import java.io.IOException
@@ -13,7 +14,7 @@ import scala.util.Using
 @Singleton
 class FileAuditLogRepository @Inject()(
   config: play.api.Configuration
-)(implicit ec: ExecutionContext) extends AuditLogRepository {
+)(implicit ec: ExecutionContext) extends AuditLogRepository with Logging {
 
   private val logFile: Path = Paths.get(
     config.get[String]("app.audit-log.file-path")
@@ -25,27 +26,36 @@ class FileAuditLogRepository @Inject()(
   }
   if (!Files.exists(logFile)) Files.createFile(logFile)
 
+  logger.info(s"[FileAuditLog] Initialized file audit log at: ${logFile.toAbsolutePath}")
+
   override def append(event: OrderEvent): Future[Unit] = Future {
     synchronized {
+      logger.info(s"[FileAuditLog] Writing event '${event.eventType}' for order ${event.order.id} to ${logFile.getFileName}")
       Using(Files.newBufferedWriter(logFile, StandardOpenOption.APPEND)) { w =>
         w.write(Json.toJson(event).toString)
         w.newLine()
         w.flush()
       }.recover {
-        case e: IOException => throw new RuntimeException("Failed to append event to audit log", e)
+        case e: IOException =>
+          logger.error(s"[FileAuditLog] Failed to append event '${event.eventType}' for order ${event.order.id}", e)
+          throw new RuntimeException("Failed to append event to audit log", e)
       }.get
     }
   }
 
   override def readAll(): Future[List[OrderEvent]] = Future {
-    if (!Files.exists(logFile)) List.empty
-    else
-      Files.readAllLines(logFile).asScala.toList
-        .filter(_.nonEmpty)
-        .map { line =>
-          Json.parse(line).as[OrderEvent]
-        }
+    if (!Files.exists(logFile)) {
+      logger.warn(s"[FileAuditLog] Log file does not exist: ${logFile.toAbsolutePath}")
+      List.empty
+    } else {
+      val lines = Files.readAllLines(logFile).asScala.toList.filter(_.nonEmpty)
+      logger.info(s"[FileAuditLog] Reading ${lines.size} audit event(s) from ${logFile.getFileName}")
+      lines.map { line =>
+        Json.parse(line).as[OrderEvent]
+      }
+    }
   }
 }
+
 
 
