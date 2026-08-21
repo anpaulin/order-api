@@ -11,7 +11,6 @@ case class OrderEvent(
 )
 
 object OrderEvent {
-  import JsonFormats.given
   import Order.given
 
   private given Format[Instant] = Format(

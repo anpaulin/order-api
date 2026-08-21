@@ -177,7 +177,7 @@ Validation errors return `400 Bad Request` with full error accumulation across a
 
 ## 🧪 Testing & Verification
 
-The test suite contains **37 unit tests** across 5 test suites covering controllers, services, repositories, and error paths.
+The test suite contains **36 unit tests** across 5 test suites covering controllers, services, repositories, and error paths.
 
 ```bash
 # Run all tests
@@ -190,6 +190,33 @@ sbt test
 - `PlaceholderAuditLogRepositoriesSpec`: Tests Kafka & MySQL placeholder lifecycle and Guice dynamic binding.
 - `InMemoryAuditLogRepositorySpec`: Tests thread-safe in-memory event recording.
 - `FileAuditLogRepositorySpec`: Tests file persistence, formatting, and replay.
+
+---
+
+## 🚦 Traffic Generator & Simulator
+
+A high-performance traffic simulator is included to generate realistic, steady-state load with mixed operations:
+- **60%** Order Creations (`POST /orders`)
+- **25%** Order Updates (`PATCH /orders/:id`)
+- **10%** Order Deletions (`DELETE /orders/:id`)
+- **5%** Search Queries (`GET /orders/search`)
+
+### Run via SBT:
+
+```bash
+# Run with default settings (10 reqs/sec against http://localhost:9000)
+sbt "runMain tools.OrderSimulator"
+
+# Run with custom rate and duration (e.g. 50 reqs/sec for 60 seconds)
+sbt "runMain tools.OrderSimulator --rate 50 --duration 60 --target http://localhost:9000"
+```
+
+### CLI Options:
+| Flag | Description | Default |
+| :--- | :--- | :--- |
+| `--rate <int>` | Target requests per second | `10` |
+| `--target <url>` | Service base URL | `http://localhost:9000` |
+| `--duration <sec>` | Run duration in seconds (`0` = infinite until Ctrl+C) | `0` |
 
 ---
 
@@ -212,3 +239,4 @@ sbt run
 ```
 
 Access the service at `http://localhost:9000`.
+
