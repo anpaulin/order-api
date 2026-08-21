@@ -5,6 +5,7 @@ import play.api.{Configuration, Logging}
 
 import java.util.concurrent.CopyOnWriteArrayList
 import javax.inject.{Inject, Singleton}
+import scala.concurrent.Future
 import scala.jdk.CollectionConverters.*
 
 /**
@@ -23,18 +24,21 @@ class MySqlAuditLogRepository @Inject()(config: Configuration) extends AuditLogR
 
   logger.info(s"Initialized MySqlAuditLogRepository with url=$jdbcUrl, table=$tableName")
 
-  override def append(event: OrderEvent): Unit = {
+  override def append(event: OrderEvent): Future[Unit] = {
     logger.info(s"[MySQL INSERT] Inserting into table `$tableName` event ${event.eventType} for order ${event.order.id}")
     simulatedTable.add(event)
+    Future.successful(())
   }
 
-  override def readAll(): List[OrderEvent] = {
+  override def readAll(): Future[List[OrderEvent]] = {
     logger.info(s"[MySQL SELECT] Querying all events from table `$tableName`")
-    simulatedTable.asScala.toList
+    Future.successful(simulatedTable.asScala.toList)
   }
 
-  override def clear(): Unit = {
+  override def clear(): Future[Unit] = {
     logger.info(s"[MySQL TRUNCATE] Truncating table `$tableName`")
     simulatedTable.clear()
+    Future.successful(())
   }
 }
+

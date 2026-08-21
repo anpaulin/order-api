@@ -1,6 +1,8 @@
 package repositories
 
 import models.{EventType, Order, OrderEvent, TransactionType}
+import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.time.{Millis, Seconds, Span}
 import org.scalatestplus.play.PlaySpec
 import play.api.Configuration
 import play.api.inject.guice.GuiceApplicationBuilder
@@ -8,7 +10,11 @@ import play.api.inject.guice.GuiceApplicationBuilder
 import java.time.{Instant, OffsetDateTime}
 import java.util.{Currency, UUID}
 
-class PlaceholderAuditLogRepositoriesSpec extends PlaySpec {
+class PlaceholderAuditLogRepositoriesSpec extends PlaySpec with ScalaFutures {
+
+  implicit override val patienceConfig: PatienceConfig =
+    PatienceConfig(timeout = Span(5, Seconds), interval = Span(50, Millis))
+
 
   private def sampleEvent(
     id: UUID = UUID.randomUUID(),
@@ -33,15 +39,15 @@ class PlaceholderAuditLogRepositoriesSpec extends PlaySpec {
         "app.audit-log.kafka.topic" -> "test-orders"
       )
       val repo = new KafkaAuditLogRepository(config)
-      repo.readAll() mustBe empty
+      repo.readAll().futureValue mustBe empty
 
       val event = sampleEvent()
-      repo.append(event)
-      repo.readAll() must have size 1
-      repo.readAll().head.order.id mustBe event.order.id
+      repo.append(event).futureValue
+      repo.readAll().futureValue must have size 1
+      repo.readAll().futureValue.head.order.id mustBe event.order.id
 
-      repo.clear()
-      repo.readAll() mustBe empty
+      repo.clear().futureValue
+      repo.readAll().futureValue mustBe empty
     }
   }
 
@@ -53,17 +59,18 @@ class PlaceholderAuditLogRepositoriesSpec extends PlaySpec {
         "app.audit-log.mysql.table" -> "test_audit_logs"
       )
       val repo = new MySqlAuditLogRepository(config)
-      repo.readAll() mustBe empty
+      repo.readAll().futureValue mustBe empty
 
       val event = sampleEvent()
-      repo.append(event)
-      repo.readAll() must have size 1
-      repo.readAll().head.order.id mustBe event.order.id
+      repo.append(event).futureValue
+      repo.readAll().futureValue must have size 1
+      repo.readAll().futureValue.head.order.id mustBe event.order.id
 
-      repo.clear()
-      repo.readAll() mustBe empty
+      repo.clear().futureValue
+      repo.readAll().futureValue mustBe empty
     }
   }
+
 
   "Module configuration-driven binding" should {
 

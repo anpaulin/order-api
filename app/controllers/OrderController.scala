@@ -9,44 +9,45 @@ import java.time.OffsetDateTime
 import java.time.format.DateTimeParseException
 import java.util.{Currency, UUID}
 import javax.inject.{Inject, Singleton}
+import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class OrderController @Inject()(
   svc: OrderService,
   val controllerComponents: ControllerComponents
-) extends BaseController {
+)(implicit ec: ExecutionContext) extends BaseController {
 
-  def create: Action[JsValue] = Action(parse.json) { request =>
+  def create: Action[JsValue] = Action.async(parse.json) { request =>
     request.body.validate[CreateOrderRequest] match {
-      case JsError(errors)   => BadRequest(jsErrorJson(errors))
+      case JsError(errors)   => Future.successful(BadRequest(jsErrorJson(errors)))
       case JsSuccess(req, _) =>
-        val created = svc.create(req.toOrder)
-        Created(Json.toJson(created))
-          .withHeaders("Location" -> s"/orders/${created.id}")
+        svc.create(req.toOrder).map { created =>
+          Created(Json.toJson(created))
+            .withHeaders("Location" -> s"/orders/${created.id}")
+        }
     }
   }
 
-  def get(id: UUID): Action[AnyContent] = Action {
-    svc.get(id) match {
+  def get(id: UUID): Action[AnyContent] = Action.async {
+    svc.get(id).map {
       case Some(order) => Ok(Json.toJson(order))
       case None        => NotFound
     }
   }
 
-  def update(id: UUID): Action[JsValue] = Action(parse.json) { request =>
+  def update(id: UUID): Action[JsValue] = Action.async(parse.json) { request =>
     request.body.validate[UpdateOrderRequest] match {
-      case JsError(errors)   => BadRequest(jsErrorJson(errors))
+      case JsError(errors)   => Future.successful(BadRequest(jsErrorJson(errors)))
       case JsSuccess(req, _) =>
-        svc.update(id, req) match {
+        svc.update(id, req).map {
           case Right(updated) => Ok(Json.toJson(updated))
           case Left(_)        => NotFound
         }
     }
   }
 
-
-  def delete(id: UUID): Action[AnyContent] = Action {
-    svc.delete(id) match {
+  def delete(id: UUID): Action[AnyContent] = Action.async {
+    svc.delete(id).map {
       case Right(_) => NoContent
       case Left(_)  => NotFound
     }
@@ -57,7 +58,7 @@ class OrderController @Inject()(
     transactionType: Option[String],
     startDate: Option[String],
     endDate: Option[String]
-  ): Action[AnyContent] = Action {
+  ): Action[AnyContent] = Action.async {
 
     val curResult   = currencyCode.map(parseCurrency)
     val txResult    = transactionType.map(TransactionType.fromString)
@@ -82,17 +83,19 @@ class OrderController @Inject()(
     if (allErrors.nonEmpty) {
       val summary = if (allErrors.size == 1) (allErrors.head \ "message").as[String]
                     else s"Validation failed for ${allErrors.size} query parameters"
-      BadRequest(errorJson("ValidationError", summary, allErrors))
+      Future.successful(BadRequest(errorJson("ValidationError", summary, allErrors)))
     } else {
-      val results = svc.search(
+      svc.search(
         currency = curResult.flatMap(_.toOption),
         txType   = txResult.flatMap(_.toOption),
         start    = startResult.flatMap(_.toOption),
         end      = endResult.flatMap(_.toOption)
-      )
-      Ok(Json.toJson(results))
+      ).map { results =>
+        Ok(Json.toJson(results))
+      }
     }
   }
+
 
   // --- Helpers ---
 
@@ -115,8 +118,8 @@ class OrderController @Inject()(
   }
 
   private def jsErrorJson(errors: collection.Seq[(JsPath, collection.Seq[JsonValidationError])]): JsObject = {
-    val details: Seq[JsObject] = errors.flatMap { case (path, validationErrors) =>
-      val field = path.path match {
+    val details: Seq[JsObject] = errors.flatMap { case (jsPath, validationErrors) =>
+      val field = jsPath.path match {
         case Nil   => "body"
         case nodes => nodes.map {
           case KeyPathNode(k) => k

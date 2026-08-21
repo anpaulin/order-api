@@ -5,6 +5,7 @@ import play.api.{Configuration, Logging}
 
 import java.util.concurrent.CopyOnWriteArrayList
 import javax.inject.{Inject, Singleton}
+import scala.concurrent.Future
 import scala.jdk.CollectionConverters.*
 
 /**
@@ -23,18 +24,21 @@ class KafkaAuditLogRepository @Inject()(config: Configuration) extends AuditLogR
 
   logger.info(s"Initialized KafkaAuditLogRepository with bootstrapServers=$bootstrapServers, topic=$topic")
 
-  override def append(event: OrderEvent): Unit = {
+  override def append(event: OrderEvent): Future[Unit] = {
     logger.info(s"[Kafka Producer] Publishing event to topic '$topic': ${event.eventType} for order ${event.order.id}")
     simulatedTopic.add(event)
+    Future.successful(())
   }
 
-  override def readAll(): List[OrderEvent] = {
+  override def readAll(): Future[List[OrderEvent]] = {
     logger.info(s"[Kafka Consumer] Consuming all events from topic '$topic'")
-    simulatedTopic.asScala.toList
+    Future.successful(simulatedTopic.asScala.toList)
   }
 
-  override def clear(): Unit = {
+  override def clear(): Future[Unit] = {
     logger.info(s"[Kafka Admin] Purging topic '$topic'")
     simulatedTopic.clear()
+    Future.successful(())
   }
 }
+

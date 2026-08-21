@@ -20,8 +20,10 @@ import play.api.test.Helpers.*
 
 import java.time.OffsetDateTime
 import java.util.{Currency, UUID}
+import scala.concurrent.Future
 
 class OrderControllerSpec extends PlaySpec with MockitoSugar {
+
 
   private def buildApp(svc: OrderService): Application =
     new GuiceApplicationBuilder()
@@ -67,7 +69,7 @@ class OrderControllerSpec extends PlaySpec with MockitoSugar {
     "return Created for valid request" in {
       val svc = mock[OrderService]
       val order = mockOrder()
-      when(svc.create(any[Order])).thenReturn(order)
+      when(svc.create(any[Order])).thenReturn(Future.successful(order))
 
       val app = buildApp(svc)
       running(app) {
@@ -86,6 +88,7 @@ class OrderControllerSpec extends PlaySpec with MockitoSugar {
         (contentAsJson(result) \ "currencyCode").as[String] mustBe "USD"
       }
     }
+
 
     "return BadRequest for invalid currency code" in {
       val svc = mock[OrderService]
@@ -165,7 +168,7 @@ class OrderControllerSpec extends PlaySpec with MockitoSugar {
       val svc = mock[OrderService]
       val id = UUID.randomUUID()
       val order = mockOrder(id = id)
-      when(svc.get(id)).thenReturn(Some(order))
+      when(svc.get(id)).thenReturn(Future.successful(Some(order)))
 
       val app = buildApp(svc)
       running(app) {
@@ -179,7 +182,7 @@ class OrderControllerSpec extends PlaySpec with MockitoSugar {
     "return NotFound for missing order" in {
       val svc = mock[OrderService]
       val id = UUID.randomUUID()
-      when(svc.get(id)).thenReturn(None)
+      when(svc.get(id)).thenReturn(Future.successful(None))
 
       val app = buildApp(svc)
       running(app) {
@@ -195,7 +198,7 @@ class OrderControllerSpec extends PlaySpec with MockitoSugar {
       val svc = mock[OrderService]
       val id = UUID.randomUUID()
       val updated = mockOrder(id = id, amount = BigDecimal("99.99"), currency = "EUR", txType = TransactionType.Refund)
-      when(svc.update(org.mockito.ArgumentMatchers.eq(id), any[UpdateOrderRequest])).thenReturn(Right(updated))
+      when(svc.update(org.mockito.ArgumentMatchers.eq(id), any[UpdateOrderRequest])).thenReturn(Future.successful(Right(updated)))
 
 
       val app = buildApp(svc)
@@ -241,7 +244,7 @@ class OrderControllerSpec extends PlaySpec with MockitoSugar {
     "return NoContent on successful delete" in {
       val svc = mock[OrderService]
       val id = UUID.randomUUID()
-      when(svc.delete(id)).thenReturn(Right(()))
+      when(svc.delete(id)).thenReturn(Future.successful(Right(())))
 
       val app = buildApp(svc)
       running(app) {
@@ -268,7 +271,7 @@ class OrderControllerSpec extends PlaySpec with MockitoSugar {
 
     "return Ok with missing startDate" in {
       val svc = mock[OrderService]
-      when(svc.search(any, any, any, any)).thenReturn(List.empty)
+      when(svc.search(any, any, any, any)).thenReturn(Future.successful(List.empty))
 
       val app = buildApp(svc)
       running(app) {
@@ -279,7 +282,7 @@ class OrderControllerSpec extends PlaySpec with MockitoSugar {
 
     "return Ok with missing endDate" in {
       val svc = mock[OrderService]
-      when(svc.search(any, any, any, any)).thenReturn(List.empty)
+      when(svc.search(any, any, any, any)).thenReturn(Future.successful(List.empty))
 
       val app = buildApp(svc)
       running(app) {
@@ -287,6 +290,7 @@ class OrderControllerSpec extends PlaySpec with MockitoSugar {
         status(result) mustBe OK
       }
     }
+
 
     "return BadRequest for malformed date" in {
       val svc = mock[OrderService]

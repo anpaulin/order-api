@@ -1,16 +1,23 @@
 package repositories
 
 import models.{EventType, Order, OrderEvent, TransactionType}
+import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.time.{Millis, Seconds, Span}
 import org.scalatestplus.play.PlaySpec
 import play.api.Configuration
 
 import java.nio.file.{Files, Paths}
 import java.time.{Instant, OffsetDateTime}
 import java.util.{Currency, UUID}
+import scala.concurrent.ExecutionContext.Implicits.global
 
-class FileAuditLogRepositorySpec extends PlaySpec {
+class FileAuditLogRepositorySpec extends PlaySpec with ScalaFutures {
+
+  implicit override val patienceConfig: PatienceConfig =
+    PatienceConfig(timeout = Span(5, Seconds), interval = Span(50, Millis))
 
   private val testFilePath = "./data/test-file-audit.log"
+
 
   private def sampleEvent(
     id: UUID = UUID.randomUUID(),
@@ -40,34 +47,35 @@ class FileAuditLogRepositorySpec extends PlaySpec {
 
       val repo = createRepo()
       Files.exists(path) mustBe true
-      repo.clear()
+      repo.clear().futureValue
     }
 
     "append and read back persisted events" in {
       val repo = createRepo()
-      repo.clear()
+      repo.clear().futureValue
 
       val event1 = sampleEvent()
       val event2 = sampleEvent(eventType = EventType.OrderUpdated)
 
-      repo.append(event1)
-      repo.append(event2)
+      repo.append(event1).futureValue
+      repo.append(event2).futureValue
 
-      val events = repo.readAll()
+      val events = repo.readAll().futureValue
       events must have size 2
       events.head.order.id mustBe event1.order.id
       events.last.order.id mustBe event2.order.id
 
-      repo.clear()
+      repo.clear().futureValue
     }
 
     "clear file contents" in {
       val repo = createRepo()
-      repo.append(sampleEvent())
-      repo.readAll() must not be empty
+      repo.append(sampleEvent()).futureValue
+      repo.readAll().futureValue must not be empty
 
-      repo.clear()
-      repo.readAll() mustBe empty
+      repo.clear().futureValue
+      repo.readAll().futureValue mustBe empty
     }
   }
 }
+
