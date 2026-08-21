@@ -141,22 +141,39 @@ object OrderSimulator {
     // Calculate delay between requests in microseconds
     val intervalMicros = (1000000.0 / rate).toLong
 
+    // Warm up initial order pool before starting mixed traffic
+    println("🌱 Seeding initial order pool...")
+    val warmupTarget = Math.min(Math.max(rate * 2, 20), 50)
+    var seeded = 0
+    while (seeded < warmupTarget && running.get()) {
+      sendCreate(client, target)
+      seeded += 1
+      Thread.sleep(15)
+    }
+    // Brief pause to allow initial creates to acknowledge
+    Thread.sleep(200)
+    println(s"✅ Seeded initial orders (active pool: ${activeOrderIds.size}). Starting traffic simulation...\n")
+
+    val minPoolSize = 15
+
     // Task generator
     val task = new Runnable {
       override def run(): Unit = {
         if (!running.get()) return
 
+        val currentPool = activeOrderIds.size()
         val rand = Random.nextInt(100)
         try {
-          if (rand < 60 || activeOrderIds.isEmpty) {
-            // 60% Create
+          if (currentPool < minPoolSize || rand < 60) {
+            // Create when pool is small or 60% of the time
             sendCreate(client, target)
           } else if (rand < 85) {
-            // 25% Update
+            // 25% Update (only when orders exist)
             sendUpdate(client, target)
           } else if (rand < 95) {
-            // 10% Delete
-            sendDelete(client, target)
+            // 10% Delete (only when pool has healthy headroom above minPoolSize)
+            if (currentPool > minPoolSize + 5) sendDelete(client, target)
+            else sendCreate(client, target)
           } else {
             // 5% Search
             sendSearch(client, target)
@@ -167,6 +184,7 @@ object OrderSimulator {
         }
       }
     }
+
 
     executor.scheduleAtFixedRate(task, 0, intervalMicros, TimeUnit.MICROSECONDS)
 
