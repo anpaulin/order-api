@@ -65,7 +65,7 @@ object OrderSimulator {
     println(s"🚀 Order Service Traffic Simulator")
     println(s"   Target URL : $target")
     println(s"   Rate       : $rate reqs/sec")
-    println(s"   Duration   : ${if (duration > 0) s"${duration}s" else "Unlimited (Ctrl+C to stop)"}")
+    println(s"   Duration   : ${if (duration > 0) s"${duration}s" else "Unlimited (Press [Enter] or Ctrl+C to stop)"}")
     println("=" * 60)
 
     val client = HttpClient.newBuilder()
@@ -74,10 +74,15 @@ object OrderSimulator {
       .build()
 
     val running = new AtomicBoolean(true)
-    val executor: ScheduledExecutorService = Executors.newScheduledThreadPool(4)
+    val daemonFactory: java.util.concurrent.ThreadFactory = (r: Runnable) => {
+      val t = new Thread(r)
+      t.setDaemon(true)
+      t
+    }
 
-    // Schedule metrics reporter every 2 seconds
-    val metricsScheduler = Executors.newSingleThreadScheduledExecutor()
+    val executor: ScheduledExecutorService = Executors.newScheduledThreadPool(4, daemonFactory)
+    val metricsScheduler = Executors.newSingleThreadScheduledExecutor(daemonFactory)
+
     var lastTime = System.currentTimeMillis()
     var lastSuccess = 0L
     var lastErrors = 0L
@@ -96,13 +101,16 @@ object OrderSimulator {
       lastErrors = currentErrors
     }, 2, 2, TimeUnit.SECONDS)
 
-    // Shutdown hook for summary
-    Runtime.getRuntime.addShutdownHook(new Thread(() => {
-      running.set(false)
-      executor.shutdownNow()
-      metricsScheduler.shutdownNow()
-      printSummary()
-    }))
+    def shutdown(): Unit = {
+      if (running.compareAndSet(true, false)) {
+        executor.shutdownNow()
+        metricsScheduler.shutdownNow()
+        printSummary()
+      }
+    }
+
+    // Shutdown hook for Ctrl+C
+    Runtime.getRuntime.addShutdownHook(new Thread(() => shutdown()))
 
     // Calculate delay between requests in microseconds
     val intervalMicros = (1000000.0 / rate).toLong
@@ -128,7 +136,7 @@ object OrderSimulator {
             sendSearch(client, target)
           }
         } catch {
-          case e: Exception =>
+          case _: Exception =>
             totalErrors.incrementAndGet()
         }
       }
@@ -139,9 +147,21 @@ object OrderSimulator {
     if (duration > 0) {
       Thread.sleep(duration * 1000)
       println(s"\n⏱️ Duration of ${duration}s reached. Stopping simulator...")
-      System.exit(0)
+      shutdown()
+    } else {
+      // Allow stopping by pressing Enter in sbt shell or console
+      println("💡 Tip: Press [Enter] at any time in the sbt shell to stop the simulator.\n")
+      try {
+        scala.io.StdIn.readLine()
+      } catch {
+        case _: Exception => // non-interactive environment fallback
+          while (running.get()) Thread.sleep(1000)
+      }
+      println("\n🛑 Stopping simulator...")
+      shutdown()
     }
   }
+
 
   private def sendCreate(client: HttpClient, target: String): Unit = {
     val amount = f"${Random.nextDouble() * 500 + 10}%.2f"
