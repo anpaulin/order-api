@@ -1,7 +1,10 @@
 package tools
 
+import java.io.{BufferedWriter, IOException}
 import java.net.URI
 import java.net.http.{HttpClient, HttpRequest, HttpResponse}
+import java.nio.charset.StandardCharsets
+import java.nio.file.{Files, Path, Paths, StandardOpenOption}
 import java.time.Duration
 import java.util.concurrent.{ConcurrentLinkedQueue, Executors, ScheduledExecutorService, TimeUnit}
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicLong}
@@ -17,13 +20,17 @@ import scala.util.Random
  * - 10% Delete Order (DELETE /orders/:id)
  * - 5%  Search Orders (GET /orders/search)
  *
+ * All failed requests (non-2xx responses or network exceptions) are written
+ * with timestamp, method, URL, status code, error reason, and payload to an error log.
+ *
  * Usage via SBT:
  *   sbt "runMain tools.OrderSimulator --rate 20 --target http://localhost:9000"
  *
  * CLI Options:
- *   --rate <int>      Target requests per second (default: 10)
- *   --target <url>    Base URL of the Order Service (default: http://localhost:9000)
- *   --duration <sec>  Run duration in seconds (default: unlimited, press Ctrl+C to stop)
+ *   --rate <int>        Target requests per second (default: 10)
+ *   --target <url>      Base URL of the Order Service (default: http://localhost:9000)
+ *   --duration <sec>    Run duration in seconds (default: unlimited, press [Enter] to stop)
+ *   --error-log <path>  Path to write error log (default: ./data/simulator-errors.log)
  */
 object OrderSimulator {
 
@@ -37,6 +44,9 @@ object OrderSimulator {
   private val totalSearched  = new AtomicLong(0)
   private val totalSuccess   = new AtomicLong(0)
   private val totalErrors    = new AtomicLong(0)
+
+  private var errorLogPath: Path = Paths.get("./data/simulator-errors.log")
+  private var errorWriter: BufferedWriter = _
 
   def main(args: Array[String]): Unit = {
     var rate     = 10
@@ -55,17 +65,32 @@ object OrderSimulator {
         case "--duration" if i + 1 < args.length =>
           duration = args(i + 1).toLong
           i += 1
+        case "--error-log" if i + 1 < args.length =>
+          errorLogPath = Paths.get(args(i + 1))
+          i += 1
         case other =>
           println(s"Unknown argument: $other")
       }
       i += 1
     }
 
+    // Initialize error log writer
+    if (errorLogPath.getParent != null) {
+      Files.createDirectories(errorLogPath.getParent)
+    }
+    errorWriter = Files.newBufferedWriter(
+      errorLogPath,
+      StandardCharsets.UTF_8,
+      StandardOpenOption.CREATE,
+      StandardOpenOption.APPEND
+    )
+
     println("=" * 60)
     println(s"🚀 Order Service Traffic Simulator")
     println(s"   Target URL : $target")
     println(s"   Rate       : $rate reqs/sec")
     println(s"   Duration   : ${if (duration > 0) s"${duration}s" else "Unlimited (Press [Enter] or Ctrl+C to stop)"}")
+    println(s"   Error Log  : ${errorLogPath.toAbsolutePath}")
     println("=" * 60)
 
     val client = HttpClient.newBuilder()
@@ -105,6 +130,7 @@ object OrderSimulator {
       if (running.compareAndSet(true, false)) {
         executor.shutdownNow()
         metricsScheduler.shutdownNow()
+        closeErrorWriter()
         printSummary()
       }
     }
@@ -136,8 +162,8 @@ object OrderSimulator {
             sendSearch(client, target)
           }
         } catch {
-          case _: Exception =>
-            totalErrors.incrementAndGet()
+          case ex: Exception =>
+            logError("CLIENT_TASK", target, 0, ex.getMessage)
         }
       }
     }
@@ -162,16 +188,16 @@ object OrderSimulator {
     }
   }
 
-
   private def sendCreate(client: HttpClient, target: String): Unit = {
     val amount = f"${Random.nextDouble() * 500 + 10}%.2f"
     val currency = currencies(Random.nextInt(currencies.length))
     val txType = txTypes(Random.nextInt(txTypes.length))
 
     val body = s"""{"amount": $amount, "currencyCode": "$currency", "transactionType": "$txType"}"""
+    val url = s"$target/orders"
 
     val req = HttpRequest.newBuilder()
-      .uri(URI.create(s"$target/orders"))
+      .uri(URI.create(url))
       .header("Content-Type", "application/json")
       .POST(HttpRequest.BodyPublishers.ofString(body))
       .timeout(Duration.ofSeconds(5))
@@ -191,10 +217,10 @@ object OrderSimulator {
           if (activeOrderIds.size() > 5000) activeOrderIds.poll()
         }
       } else {
-        totalErrors.incrementAndGet()
+        logError("POST", url, resp.statusCode(), resp.body(), body)
       }
-    }.exceptionally { _ =>
-      totalErrors.incrementAndGet()
+    }.exceptionally { ex =>
+      logError("POST", url, 0, s"Network exception: ${ex.getMessage}", body)
       null
     }
   }
@@ -206,9 +232,10 @@ object OrderSimulator {
     val newAmount = f"${Random.nextDouble() * 300 + 5}%.2f"
     val newTxType = txTypes(Random.nextInt(txTypes.length))
     val body = s"""{"amount": $newAmount, "transactionType": "$newTxType"}"""
+    val url = s"$target/orders/${id.get}"
 
     val req = HttpRequest.newBuilder()
-      .uri(URI.create(s"$target/orders/${id.get}"))
+      .uri(URI.create(url))
       .header("Content-Type", "application/json")
       .method("PATCH", HttpRequest.BodyPublishers.ofString(body))
       .timeout(Duration.ofSeconds(5))
@@ -220,11 +247,12 @@ object OrderSimulator {
         totalSuccess.incrementAndGet()
       } else if (resp.statusCode() == 404) {
         activeOrderIds.remove(id.get)
+        logError("PATCH", url, 404, "Order not found in server state", body)
       } else {
-        totalErrors.incrementAndGet()
+        logError("PATCH", url, resp.statusCode(), resp.body(), body)
       }
-    }.exceptionally { _ =>
-      totalErrors.incrementAndGet()
+    }.exceptionally { ex =>
+      logError("PATCH", url, 0, s"Network exception: ${ex.getMessage}", body)
       null
     }
   }
@@ -233,8 +261,9 @@ object OrderSimulator {
     val id = pickRandomId()
     if (id.isEmpty) return
 
+    val url = s"$target/orders/${id.get}"
     val req = HttpRequest.newBuilder()
-      .uri(URI.create(s"$target/orders/${id.get}"))
+      .uri(URI.create(url))
       .DELETE()
       .timeout(Duration.ofSeconds(5))
       .build()
@@ -246,11 +275,12 @@ object OrderSimulator {
         activeOrderIds.remove(id.get)
       } else if (resp.statusCode() == 404) {
         activeOrderIds.remove(id.get)
+        logError("DELETE", url, 404, "Order not found in server state")
       } else {
-        totalErrors.incrementAndGet()
+        logError("DELETE", url, resp.statusCode(), resp.body())
       }
-    }.exceptionally { _ =>
-      totalErrors.incrementAndGet()
+    }.exceptionally { ex =>
+      logError("DELETE", url, 0, s"Network exception: ${ex.getMessage}")
       null
     }
   }
@@ -258,9 +288,10 @@ object OrderSimulator {
   private def sendSearch(client: HttpClient, target: String): Unit = {
     val currency = currencies(Random.nextInt(currencies.length))
     val txType = txTypes(Random.nextInt(txTypes.length))
+    val url = s"$target/orders/search?currencyCode=$currency&transactionType=$txType"
 
     val req = HttpRequest.newBuilder()
-      .uri(URI.create(s"$target/orders/search?currencyCode=$currency&transactionType=$txType"))
+      .uri(URI.create(url))
       .GET()
       .timeout(Duration.ofSeconds(5))
       .build()
@@ -270,14 +301,46 @@ object OrderSimulator {
         totalSearched.incrementAndGet()
         totalSuccess.incrementAndGet()
       } else {
-        totalErrors.incrementAndGet()
+        logError("GET", url, resp.statusCode(), resp.body())
       }
-    }.exceptionally { _ =>
-      totalErrors.incrementAndGet()
+    }.exceptionally { ex =>
+      logError("GET", url, 0, s"Network exception: ${ex.getMessage}")
       null
     }
   }
 
+  private def logError(method: String, url: String, statusCode: Int, reason: String, payload: String = ""): Unit = {
+    totalErrors.incrementAndGet()
+    val ts = java.time.Instant.now().toString
+    val cleanReason = if (reason == null || reason.isEmpty) "Unknown error" else reason.replace("\n", " ").trim
+    val payloadInfo = if (payload.nonEmpty) s" | Payload: $payload" else ""
+    val line = s"[$ts] $method $url | Status: $statusCode | Reason: $cleanReason$payloadInfo"
+
+    if (errorWriter != null) {
+      synchronized {
+        try {
+          errorWriter.write(line)
+          errorWriter.newLine()
+          errorWriter.flush()
+        } catch {
+          case _: Exception => ()
+        }
+      }
+    }
+  }
+
+  private def closeErrorWriter(): Unit = {
+    if (errorWriter != null) {
+      synchronized {
+        try {
+          errorWriter.flush()
+          errorWriter.close()
+        } catch {
+          case _: Exception => ()
+        }
+      }
+    }
+  }
 
   private def pickRandomId(): Option[String] = {
     val ids = activeOrderIds.asScala.toIndexedSeq
@@ -300,6 +363,10 @@ object OrderSimulator {
     println(f"   - Deleted Orders       : ${totalDeleted.get}%,d")
     println(f"   - Search Queries       : ${totalSearched.get}%,d")
     println(f"   - Remaining In-Memory  : ${activeOrderIds.size}%,d")
+    if (totalErrors.get() > 0) {
+      println(s"\n   ⚠️ Failed requests logged to: ${errorLogPath.toAbsolutePath}")
+    }
     println("=" * 60)
   }
 }
+
