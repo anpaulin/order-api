@@ -1,0 +1,24 @@
+Analysis
+
+-> Let's start off with the simplest system possible. Basic RESTful service that lets us create orders, query orders, update orders, delete orders
+-> The state of the system is stored in a DB (some sort of relational DB) MySQl, Postgres, etc.
+-> all write operations (create an orders, update an order, delete an order) are seen as transactions
+    -> once the write is completed successfully, any subsequent reads can see that latest data
+
+-> Straight fwd, simple, concise
+-> what happens when we want to scale this system? once server can only handle so many requests
+-> Note that even in this basic system, we still encounter 'race' conditions
+-> Say we have a Create & Query that are fired from the client very shortly after each other, but due to network delays, they arrive almost at the same time
+-> Even though the Create (Write) was fired & reached the server before the Query (Read) it's still possible that the write hadn't fully been committed to the DB before the read is executed
+-> In this case the Query would return results that don't include the latest date... only the latest COMMITTED data
+
+-> Introduce the idea of CAP theory
+    -> As we want to scale our system, as with anything there are Pros & Cons, and attributes we must accept or reject as viable for our system
+    -> Consistency -> When data is added/changed in a system, it will always be read back (when writes are committed, all following queries reflect those changes)
+    -> Availability -> When a partition occurs in our distributed system, we allow returning of possibly stale data to keep the system up
+    -> Patition Tolerance -> System handles network failures between components
+
+    We are generally choosing between Consistency (either return latest date or DONT RETURN DATA) OR availability (Return the latest data we can, sometimes having older data is acceptable)
+
+->
+
