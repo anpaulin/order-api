@@ -18,15 +18,20 @@ class OrderController @Inject()(
   val controllerComponents: ControllerComponents
 )(implicit ec: ExecutionContext) extends BaseController with Logging {
 
+  //Action = Request => Result
   def create: Action[JsValue] = Action.async(parse.json) { request =>
     request.body.validate[CreateOrderRequest] match {
       case JsError(errors) =>
+        //return the client a 400 since we have validation errors
         logger.warn(s"[OrderController] POST /orders - validation failed: ${errors.size} error(s)")
         Future.successful(BadRequest(jsErrorJson(errors)))
+
       case JsSuccess(req, _) =>
         logger.info(s"[OrderController] POST /orders - amount=${req.amount}, currency=${req.currencyCode}, type=${req.transactionType}")
-        svc.create(req.toOrder).map { created =>
+
+        svc.create(req).map { created =>
           logger.info(s"[OrderController] POST /orders - created order ${created.id}")
+          //if the creation was successful, return a 201
           Created(Json.toJson(created))
             .withHeaders("Location" -> s"/orders/${created.id}")
         }

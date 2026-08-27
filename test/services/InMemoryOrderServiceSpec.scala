@@ -44,9 +44,8 @@ class InMemoryOrderServiceSpec extends PlaySpec with MockitoSugar with BeforeAnd
     currency: String = "USD",
     txType: TransactionType = TransactionType.Sale,
     date: OffsetDateTime = OffsetDateTime.now()
-  ): Order = Order(
-    id              = null,
-    date            = date,
+  ): CreateOrderRequest = CreateOrderRequest(
+    date            = Some(date),
     amount          = amount,
     currencyCode    = Currency.getInstance(currency),
     transactionType = txType

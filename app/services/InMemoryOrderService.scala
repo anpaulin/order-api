@@ -1,6 +1,6 @@
 package services
 
-import models.{EventType, Order, OrderEvent, TransactionType, UpdateOrderRequest}
+import models.{CreateOrderRequest, EventType, Order, OrderEvent, TransactionType, UpdateOrderRequest}
 import repositories.AuditLogRepository
 import play.api.Logging
 
@@ -25,19 +25,24 @@ class InMemoryOrderService @Inject()(
     replayFromAuditLog()
   }
 
-  override def create(order: Order): Future[Order] = {
-    val id      = if (order.id == null) UUID.randomUUID() else order.id
-    val date    = if (order.date == null) OffsetDateTime.now() else order.date
-    val created = order.copy(id = id, date = date)
-    val event   = OrderEvent(EventType.OrderCreated, created, Instant.now())
+  override def create(req: CreateOrderRequest): Future[Order] = {
+    val newOrder = Order(
+      id              = UUID.randomUUID(),
+      date            = req.date.getOrElse(OffsetDateTime.now()),
+      amount          = req.amount,
+      currencyCode    = req.currencyCode,
+      transactionType = req.transactionType
+    )
+    val event = OrderEvent(EventType.OrderCreated, newOrder, Instant.now())
 
-    logger.info(s"[OrderService] [CREATE] Persisting order ${created.id} (amount=${created.amount} ${created.currencyCode}, type=${created.transactionType}) to audit log")
+    logger.info(s"[OrderService] [CREATE] Persisting order ${newOrder.id} (amount=${newOrder.amount} ${newOrder.currencyCode}, type=${newOrder.transactionType}) to audit log")
 
-    // WAL: Append to audit log first; mutate state strictly after append succeeds
+    // We are using WAL (Write Ahead Logging)
+      //Only if the append to the Audit Log is sucessfull, do we update the internal memory
     audit.append(event).map { _ =>
-      state.put(created.id, created)
-      logger.info(s"[OrderService] [CREATE] Order ${created.id} committed to in-memory state (active orders: ${state.size})")
-      created
+      state.put(newOrder.id, newOrder)
+      logger.info(s"[OrderService] [CREATE] Order ${newOrder.id} committed to in-memory state (active orders: ${state.size})")
+      newOrder
     }
   }
 

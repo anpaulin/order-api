@@ -69,7 +69,7 @@ class OrderControllerSpec extends PlaySpec with MockitoSugar {
     "return Created for valid request" in {
       val svc = mock[OrderService]
       val order = mockOrder()
-      when(svc.create(any[Order])).thenReturn(Future.successful(order))
+      when(svc.create(any[CreateOrderRequest])).thenReturn(Future.successful(order))
 
       val app = buildApp(svc)
       running(app) {
