@@ -1,7 +1,8 @@
 package repositories
 
 import models.{EventType, Order, OrderEvent, TransactionType}
-import org.scalatest.BeforeAndAfterEach
+import org.apache.pekko.actor.ActorSystem
+import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Millis, Seconds, Span}
 import org.scalatestplus.play.PlaySpec
@@ -12,10 +13,12 @@ import java.time.{Instant, OffsetDateTime}
 import java.util.{Currency, UUID}
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class FileEventStoreRepositorySpec extends PlaySpec with ScalaFutures with BeforeAndAfterEach {
+class FileEventStoreRepositorySpec extends PlaySpec with ScalaFutures with BeforeAndAfterEach with BeforeAndAfterAll {
 
   implicit override val patienceConfig: PatienceConfig =
     PatienceConfig(timeout = Span(5, Seconds), interval = Span(50, Millis))
+
+  implicit val system: ActorSystem = ActorSystem("FileEventStoreRepositoryActorSpec")
 
   private val testFilePath = "./data/test-file-event-store.log"
   private val testPath = Paths.get(testFilePath)
@@ -36,6 +39,11 @@ class FileEventStoreRepositorySpec extends PlaySpec with ScalaFutures with Befor
       currentRepo = null
     }
     Files.deleteIfExists(testPath)
+  }
+
+  override def afterAll(): Unit = {
+    system.terminate()
+    super.afterAll()
   }
 
   private def sampleEvent(
