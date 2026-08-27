@@ -57,6 +57,7 @@ class InMemoryOrderService @Inject()(
       case None =>
         logger.warn(s"[OrderService] [UPDATE] Order $id not found")
         Future.successful(Left(s"Order not found: $id"))
+
       case Some(existing) =>
         val updated = existing.copy(
           date            = patch.date.getOrElse(existing.date),

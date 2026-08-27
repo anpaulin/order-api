@@ -6,19 +6,27 @@ import play.api.{Configuration, Logging}
 
 import java.io.IOException
 import java.nio.file.{Files, Path, Paths, StandardOpenOption}
+import java.util.concurrent.Executors
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 import scala.jdk.CollectionConverters.*
 import scala.util.Using
 
 /**
- * Simple, naive append-only File Audit Log Repository.
- * Opens and flushes the file on every individual append operation.
+ * Simple Single-Threaded File Audit Log Repository.
+ *
+ * Concurrency Model:
+ * - Uses a dedicated single-threaded ExecutorService instead of `synchronized` blocks.
+ * - All append operations are queued and executed strictly sequentially one-by-one on this single thread.
+ * - Zero lock contention and zero risk of thread pool starvation.
  */
 @Singleton
 class FileAuditLogRepository @Inject()(
   config: Configuration
-)(implicit ec: ExecutionContext) extends AuditLogRepository with Logging {
+) extends AuditLogRepository with Logging {
+
+  private val executor = Executors.newSingleThreadExecutor()
+  private implicit val singleThreadEc: ExecutionContext = ExecutionContext.fromExecutor(executor)
 
   private val logFile: Path = Paths.get(
     config.get[String]("app.audit-log.file-path")
@@ -30,22 +38,20 @@ class FileAuditLogRepository @Inject()(
   }
   if (!Files.exists(logFile)) Files.createFile(logFile)
 
-  logger.info(s"[FileAuditLog] Initialized file audit log at: ${logFile.toAbsolutePath}")
+  logger.info(s"[FileAuditLog] Initialized single-threaded file audit log at: ${logFile.toAbsolutePath}")
 
   override def append(event: OrderEvent): Future[Unit] = Future {
-    synchronized {
-      logger.info(s"[FileAuditLog] Writing event '${event.eventType}' for order ${event.order.id} to ${logFile.getFileName}")
-      Using(Files.newBufferedWriter(logFile, StandardOpenOption.APPEND)) { w =>
-        w.write(Json.toJson(event).toString)
-        w.newLine()
-        w.flush()
-      }.recover {
-        case e: IOException =>
-          logger.error(s"[FileAuditLog] Failed to append event '${event.eventType}' for order ${event.order.id}", e)
-          throw new RuntimeException("Failed to append event to audit log", e)
-      }.get
-    }
-  }
+    logger.info(s"[FileAuditLog] Writing event '${event.eventType}' for order ${event.order.id} to ${logFile.getFileName}")
+    Using(Files.newBufferedWriter(logFile, StandardOpenOption.APPEND)) { w =>
+      w.write(Json.toJson(event).toString)
+      w.newLine()
+      w.flush()
+    }.recover {
+      case e: IOException =>
+        logger.error(s"[FileAuditLog] Failed to append event '${event.eventType}' for order ${event.order.id}", e)
+        throw new RuntimeException("Failed to append event to audit log", e)
+    }.get
+  }(singleThreadEc)
 
   override def readAll(): Future[List[OrderEvent]] = Future {
     if (!Files.exists(logFile)) {
@@ -58,7 +64,9 @@ class FileAuditLogRepository @Inject()(
         Json.parse(line).as[OrderEvent]
       }
     }
-  }
+  }(singleThreadEc)
 
-  def close(): Unit = ()
+  def close(): Unit = {
+    executor.shutdown()
+  }
 }
