@@ -53,8 +53,10 @@ class OrderController @Inject()(
       case JsError(errors) =>
         logger.warn(s"[OrderController] PATCH /orders/$id - validation failed: ${errors.size} error(s)")
         Future.successful(BadRequest(jsErrorJson(errors)))
+
       case JsSuccess(req, _) =>
         logger.info(s"[OrderController] PATCH /orders/$id - patch: amount=${req.amount}, currency=${req.currencyCode}, type=${req.transactionType}")
+
         svc.update(id, req).map {
           case Right(updated) =>
             logger.info(s"[OrderController] PATCH /orders/$id - successfully updated")
@@ -68,6 +70,7 @@ class OrderController @Inject()(
 
   def delete(id: UUID): Action[AnyContent] = Action.async {
     logger.info(s"[OrderController] DELETE /orders/$id")
+
     svc.delete(id).map {
       case Right(_) =>
         logger.info(s"[OrderController] DELETE /orders/$id - successfully deleted")

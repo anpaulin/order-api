@@ -52,7 +52,9 @@ class InMemoryOrderService @Inject()(
     Future.successful(result)
   }
 
+
   override def update(id: UUID, patch: UpdateOrderRequest): Future[Either[String, Order]] = {
+
     Option(state.get(id)) match {
       case None =>
         logger.warn(s"[OrderService] [UPDATE] Order $id not found")
@@ -69,7 +71,7 @@ class InMemoryOrderService @Inject()(
 
         logger.info(s"[OrderService] [UPDATE] Persisting update for order $id to event store (amount: ${existing.amount} -> ${updated.amount}, type: ${existing.transactionType} -> ${updated.transactionType})")
 
-        // WAL: Append to event store first; mutate state strictly after append succeeds
+        // WAL: Append to event store first, only mutate state after append succeeds
         eventStore.append(event).map { _ =>
           state.put(updated.id, updated)
           logger.info(s"[OrderService] [UPDATE] Order $id update committed to in-memory state")
