@@ -3,11 +3,10 @@ package repositories
 import models.OrderEvent
 import scala.concurrent.Future
 
-/** Immutable, append-only repository contract for audit log events. */
-trait AuditLogRepository {
+/**
+ * Defines the immutable append-only event store contract.
+ */
+trait EventStoreRepository {
   def append(event: OrderEvent): Future[Unit]
   def readAll(): Future[List[OrderEvent]]
 }
-
-
-

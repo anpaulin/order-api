@@ -12,15 +12,15 @@ import java.time.{Instant, OffsetDateTime}
 import java.util.{Currency, UUID}
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class FileAuditLogRepositorySpec extends PlaySpec with ScalaFutures with BeforeAndAfterEach {
+class FileEventStoreRepositorySpec extends PlaySpec with ScalaFutures with BeforeAndAfterEach {
 
   implicit override val patienceConfig: PatienceConfig =
     PatienceConfig(timeout = Span(5, Seconds), interval = Span(50, Millis))
 
-  private val testFilePath = "./data/test-file-audit.log"
+  private val testFilePath = "./data/test-file-event-store.log"
   private val testPath = Paths.get(testFilePath)
 
-  private var currentRepo: FileAuditLogRepository = _
+  private var currentRepo: FileEventStoreRepository = _
 
   override def beforeEach(): Unit = {
     if (currentRepo != null) {
@@ -53,15 +53,14 @@ class FileAuditLogRepositorySpec extends PlaySpec with ScalaFutures with BeforeA
     timestamp = Instant.now()
   )
 
-  private def createRepo(): FileAuditLogRepository = {
-    val config = Configuration("app.audit-log.file-path" -> testFilePath)
-    val repo = new FileAuditLogRepository(config)
+  private def createRepo(): FileEventStoreRepository = {
+    val config = Configuration("app.event-store.file-path" -> testFilePath)
+    val repo = new FileEventStoreRepository(config)
     currentRepo = repo
     repo
   }
 
-
-  "FileAuditLogRepository" should {
+  "FileEventStoreRepository" should {
 
     "create file if it does not exist" in {
       val repo = createRepo()
@@ -84,5 +83,3 @@ class FileAuditLogRepositorySpec extends PlaySpec with ScalaFutures with BeforeA
     }
   }
 }
-
-

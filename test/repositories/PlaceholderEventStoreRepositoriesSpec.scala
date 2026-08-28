@@ -10,11 +10,10 @@ import play.api.inject.guice.GuiceApplicationBuilder
 import java.time.{Instant, OffsetDateTime}
 import java.util.{Currency, UUID}
 
-class PlaceholderAuditLogRepositoriesSpec extends PlaySpec with ScalaFutures {
+class PlaceholderEventStoreRepositoriesSpec extends PlaySpec with ScalaFutures {
 
   implicit override val patienceConfig: PatienceConfig =
     PatienceConfig(timeout = Span(5, Seconds), interval = Span(50, Millis))
-
 
   private def sampleEvent(
     id: UUID = UUID.randomUUID(),
@@ -31,14 +30,14 @@ class PlaceholderAuditLogRepositoriesSpec extends PlaySpec with ScalaFutures {
     timestamp = Instant.now()
   )
 
-  "KafkaAuditLogRepository" should {
+  "KafkaEventStoreRepository" should {
 
     "append and readAll events in simulated topic" in {
       val config = Configuration(
-        "app.audit-log.kafka.bootstrap-servers" -> "localhost:9092",
-        "app.audit-log.kafka.topic" -> "test-orders"
+        "app.event-store.kafka.bootstrap-servers" -> "localhost:9092",
+        "app.event-store.kafka.topic" -> "test-orders"
       )
-      val repo = new KafkaAuditLogRepository(config)
+      val repo = new KafkaEventStoreRepository(config)
       repo.readAll().futureValue mustBe empty
 
       val event = sampleEvent()
@@ -48,14 +47,14 @@ class PlaceholderAuditLogRepositoriesSpec extends PlaySpec with ScalaFutures {
     }
   }
 
-  "MySqlAuditLogRepository" should {
+  "MySqlEventStoreRepository" should {
 
     "append and readAll events in simulated table" in {
       val config = Configuration(
-        "app.audit-log.mysql.url" -> "jdbc:mysql://localhost:3306/test_db",
-        "app.audit-log.mysql.table" -> "test_audit_logs"
+        "app.event-store.mysql.url" -> "jdbc:mysql://localhost:3306/test_db",
+        "app.event-store.mysql.table" -> "test_event_store"
       )
-      val repo = new MySqlAuditLogRepository(config)
+      val repo = new MySqlEventStoreRepository(config)
       repo.readAll().futureValue mustBe empty
 
       val event = sampleEvent()
@@ -65,44 +64,42 @@ class PlaceholderAuditLogRepositoriesSpec extends PlaySpec with ScalaFutures {
     }
   }
 
-
-
   "Module configuration-driven binding" should {
 
-    "bind KafkaAuditLogRepository when type is 'kafka'" in {
+    "bind KafkaEventStoreRepository when type is 'kafka'" in {
       val app = new GuiceApplicationBuilder()
-        .configure("app.audit-log.type" -> "kafka")
+        .configure("app.event-store.type" -> "kafka")
         .build()
 
-      val repo = app.injector.instanceOf[AuditLogRepository]
-      repo mustBe a[KafkaAuditLogRepository]
+      val repo = app.injector.instanceOf[EventStoreRepository]
+      repo mustBe a[KafkaEventStoreRepository]
     }
 
-    "bind MySqlAuditLogRepository when type is 'mysql'" in {
+    "bind MySqlEventStoreRepository when type is 'mysql'" in {
       val app = new GuiceApplicationBuilder()
-        .configure("app.audit-log.type" -> "mysql")
+        .configure("app.event-store.type" -> "mysql")
         .build()
 
-      val repo = app.injector.instanceOf[AuditLogRepository]
-      repo mustBe a[MySqlAuditLogRepository]
+      val repo = app.injector.instanceOf[EventStoreRepository]
+      repo mustBe a[MySqlEventStoreRepository]
     }
 
-    "bind InMemoryAuditLogRepository when type is 'memory'" in {
+    "bind InMemoryEventStoreRepository when type is 'memory'" in {
       val app = new GuiceApplicationBuilder()
-        .configure("app.audit-log.type" -> "memory")
+        .configure("app.event-store.type" -> "memory")
         .build()
 
-      val repo = app.injector.instanceOf[AuditLogRepository]
-      repo mustBe a[InMemoryAuditLogRepository]
+      val repo = app.injector.instanceOf[EventStoreRepository]
+      repo mustBe a[InMemoryEventStoreRepository]
     }
 
-    "bind FileAuditLogRepository by default" in {
+    "bind FileEventStoreRepository by default" in {
       val app = new GuiceApplicationBuilder()
-        .configure("app.audit-log.file-path" -> "./data/test-default.log")
+        .configure("app.event-store.file-path" -> "./data/test-default.log")
         .build()
 
-      val repo = app.injector.instanceOf[AuditLogRepository]
-      repo mustBe a[FileAuditLogRepository]
+      val repo = app.injector.instanceOf[EventStoreRepository]
+      repo mustBe a[FileEventStoreRepository]
     }
   }
 }

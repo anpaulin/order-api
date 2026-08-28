@@ -1,7 +1,7 @@
 package services
 
 import models.*
-import repositories.AuditLogRepository
+import repositories.EventStoreRepository
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Millis, Seconds, Span}
 import org.scalatestplus.play.*
@@ -22,21 +22,20 @@ class InMemoryOrderServiceSpec extends PlaySpec with MockitoSugar with BeforeAnd
   implicit override val patienceConfig: PatienceConfig =
     PatienceConfig(timeout = Span(5, Seconds), interval = Span(50, Millis))
 
-  private var audit: AuditLogRepository = _
+  private var eventStore: EventStoreRepository = _
 
   private var service: InMemoryOrderService = _
 
   override def beforeEach(): Unit = {
-    audit = mock[AuditLogRepository]
-    when(audit.readAll()).thenReturn(Future.successful(List.empty))
-    when(audit.append(any[OrderEvent])).thenReturn(Future.successful(()))
-
+    eventStore = mock[EventStoreRepository]
+    when(eventStore.readAll()).thenReturn(Future.successful(List.empty))
+    when(eventStore.append(any[OrderEvent])).thenReturn(Future.successful(()))
 
     val config = Configuration(
-      "app.audit-log.file-path" -> "./data/test-audit.log",
-      "app.startup.replay-audit" -> false
+      "app.event-store.file-path" -> "./data/test-event-store.log",
+      "app.startup.replay-events" -> false
     )
-    service = new InMemoryOrderService(audit, config)
+    service = new InMemoryOrderService(eventStore, config)
   }
 
   private def sampleOrder(
@@ -57,7 +56,7 @@ class InMemoryOrderServiceSpec extends PlaySpec with MockitoSugar with BeforeAnd
       val created = service.create(sampleOrder()).futureValue
 
       created.id must not be null
-      verify(audit, times(1)).append(any[OrderEvent])
+      verify(eventStore, times(1)).append(any[OrderEvent])
     }
 
     "modify existing values on update" in {
@@ -122,8 +121,8 @@ class InMemoryOrderServiceSpec extends PlaySpec with MockitoSugar with BeforeAnd
       remaining.head.currencyCode mustBe Currency.getInstance("CAD")
     }
 
-    "not modify in-memory state if audit logging fails on create" in {
-      when(audit.append(any[OrderEvent])).thenReturn(Future.failed(new RuntimeException("Disk full")))
+    "not modify in-memory state if event store persistence fails on create" in {
+      when(eventStore.append(any[OrderEvent])).thenReturn(Future.failed(new RuntimeException("Disk full")))
 
       val failure = service.create(sampleOrder()).failed.futureValue
       failure.getMessage must include("Disk full")
@@ -131,26 +130,24 @@ class InMemoryOrderServiceSpec extends PlaySpec with MockitoSugar with BeforeAnd
       service.search(None, None, None, None).futureValue mustBe empty
     }
 
-    "not modify in-memory state if audit logging fails on update" in {
+    "not modify in-memory state if event store persistence fails on update" in {
       val order = service.create(sampleOrder(amount = BigDecimal(50))).futureValue
-      when(audit.append(any[OrderEvent])).thenReturn(Future.failed(new RuntimeException("Audit failure")))
+      when(eventStore.append(any[OrderEvent])).thenReturn(Future.failed(new RuntimeException("EventStore failure")))
 
       val failure = service.update(order.id, UpdateOrderRequest(amount = Some(BigDecimal(999)))).failed.futureValue
-      failure.getMessage must include("Audit failure")
+      failure.getMessage must include("EventStore failure")
 
       service.get(order.id).futureValue.get.amount mustBe BigDecimal(50)
     }
 
-    "not modify in-memory state if audit logging fails on delete" in {
+    "not modify in-memory state if event store persistence fails on delete" in {
       val order = service.create(sampleOrder()).futureValue
-      when(audit.append(any[OrderEvent])).thenReturn(Future.failed(new RuntimeException("Audit failure")))
+      when(eventStore.append(any[OrderEvent])).thenReturn(Future.failed(new RuntimeException("EventStore failure")))
 
       val failure = service.delete(order.id).failed.futureValue
-      failure.getMessage must include("Audit failure")
+      failure.getMessage must include("EventStore failure")
 
       service.get(order.id).futureValue mustBe defined
     }
   }
 }
-
-

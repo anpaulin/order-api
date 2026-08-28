@@ -18,5 +18,5 @@ trait OrderService {
     start: Option[OffsetDateTime],
     end: Option[OffsetDateTime]
   ): Future[List[Order]]
-  def replayFromAuditLog(): Future[Unit]
+  def replayFromEventStore(): Future[Unit]
 }

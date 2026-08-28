@@ -1,7 +1,7 @@
 package services
 
 import models.{CreateOrderRequest, EventType, Order, OrderEvent, TransactionType, UpdateOrderRequest}
-import repositories.AuditLogRepository
+import repositories.EventStoreRepository
 import play.api.Logging
 
 import java.time.{Instant, OffsetDateTime}
@@ -13,16 +13,16 @@ import scala.jdk.CollectionConverters.*
 
 @Singleton
 class InMemoryOrderService @Inject()(
-  audit: AuditLogRepository,
+  eventStore: EventStoreRepository,
   config: play.api.Configuration
 )(implicit ec: ExecutionContext) extends OrderService with Logging {
 
   private val state = new ConcurrentHashMap[UUID, Order]()
 
   // Replay on startup if configured
-  if (config.get[Boolean]("app.startup.replay-audit")) {
-    logger.info("[OrderService] Startup: replaying events from audit log...")
-    replayFromAuditLog()
+  if (config.get[Boolean]("app.startup.replay-events")) {
+    logger.info("[OrderService] Startup: replaying events from event store...")
+    replayFromEventStore()
   }
 
   override def create(req: CreateOrderRequest): Future[Order] = {
@@ -35,11 +35,11 @@ class InMemoryOrderService @Inject()(
     )
     val event = OrderEvent(EventType.OrderCreated, newOrder, Instant.now())
 
-    logger.info(s"[OrderService] [CREATE] Persisting order ${newOrder.id} (amount=${newOrder.amount} ${newOrder.currencyCode}, type=${newOrder.transactionType}) to audit log")
+    logger.info(s"[OrderService] [CREATE] Persisting order ${newOrder.id} (amount=${newOrder.amount} ${newOrder.currencyCode}, type=${newOrder.transactionType}) to event store")
 
     // We are using WAL (Write Ahead Logging)
-      //Only if the append to the Audit Log is sucessfull, do we update the internal memory
-    audit.append(event).map { _ =>
+    // Only if the append to the Event Store is successful, do we update the internal memory
+    eventStore.append(event).map { _ =>
       state.put(newOrder.id, newOrder)
       logger.info(s"[OrderService] [CREATE] Order ${newOrder.id} committed to in-memory state (active orders: ${state.size})")
       newOrder
@@ -67,10 +67,10 @@ class InMemoryOrderService @Inject()(
         )
         val event = OrderEvent(EventType.OrderUpdated, updated, Instant.now())
 
-        logger.info(s"[OrderService] [UPDATE] Persisting update for order $id to audit log (amount: ${existing.amount} -> ${updated.amount}, type: ${existing.transactionType} -> ${updated.transactionType})")
+        logger.info(s"[OrderService] [UPDATE] Persisting update for order $id to event store (amount: ${existing.amount} -> ${updated.amount}, type: ${existing.transactionType} -> ${updated.transactionType})")
 
-        // WAL: Append to audit log first; mutate state strictly after append succeeds
-        audit.append(event).map { _ =>
+        // WAL: Append to event store first; mutate state strictly after append succeeds
+        eventStore.append(event).map { _ =>
           state.put(updated.id, updated)
           logger.info(s"[OrderService] [UPDATE] Order $id update committed to in-memory state")
           Right(updated)
@@ -86,10 +86,10 @@ class InMemoryOrderService @Inject()(
       case Some(existing) =>
         val event = OrderEvent(EventType.OrderDeleted, existing, Instant.now())
 
-        logger.info(s"[OrderService] [DELETE] Persisting deletion of order $id to audit log")
+        logger.info(s"[OrderService] [DELETE] Persisting deletion of order $id to event store")
 
-        // WAL: Append to audit log first; remove from state strictly after append succeeds
-        audit.append(event).map { _ =>
+        // WAL: Append to event store first; remove from state strictly after append succeeds
+        eventStore.append(event).map { _ =>
           state.remove(existing.id)
           logger.info(s"[OrderService] [DELETE] Order $id removed from in-memory state (active orders: ${state.size})")
           Right(())
@@ -114,9 +114,9 @@ class InMemoryOrderService @Inject()(
     Future.successful(results)
   }
 
-  override def replayFromAuditLog(): Future[Unit] = {
-    logger.info("[OrderService] [REPLAY] Replaying audit log to reconstruct state...")
-    audit.readAll().map { events =>
+  override def replayFromEventStore(): Future[Unit] = {
+    logger.info("[OrderService] [REPLAY] Replaying event store to reconstruct state...")
+    eventStore.readAll().map { events =>
 
       state.clear()
       events.foreach { event =>
@@ -132,7 +132,3 @@ class InMemoryOrderService @Inject()(
     }
   }
 }
-
-
-
-

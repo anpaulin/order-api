@@ -8,11 +8,10 @@ import org.scalatestplus.play.PlaySpec
 import java.time.{Instant, OffsetDateTime}
 import java.util.{Currency, UUID}
 
-class InMemoryAuditLogRepositorySpec extends PlaySpec with ScalaFutures {
+class InMemoryEventStoreRepositorySpec extends PlaySpec with ScalaFutures {
 
   implicit override val patienceConfig: PatienceConfig =
     PatienceConfig(timeout = Span(5, Seconds), interval = Span(50, Millis))
-
 
   private def sampleEvent(
     id: UUID = UUID.randomUUID(),
@@ -29,15 +28,15 @@ class InMemoryAuditLogRepositorySpec extends PlaySpec with ScalaFutures {
     timestamp = Instant.now()
   )
 
-  "InMemoryAuditLogRepository" should {
+  "InMemoryEventStoreRepository" should {
 
     "start empty" in {
-      val repo = new InMemoryAuditLogRepository()
+      val repo = new InMemoryEventStoreRepository()
       repo.readAll().futureValue mustBe empty
     }
 
     "append and read back events in order" in {
-      val repo = new InMemoryAuditLogRepository()
+      val repo = new InMemoryEventStoreRepository()
       val event1 = sampleEvent()
       val event2 = sampleEvent(eventType = EventType.OrderUpdated)
 
@@ -51,7 +50,7 @@ class InMemoryAuditLogRepositorySpec extends PlaySpec with ScalaFutures {
     }
 
     "clear all recorded events" in {
-      val repo = new InMemoryAuditLogRepository()
+      val repo = new InMemoryEventStoreRepository()
       repo.append(sampleEvent()).futureValue
       repo.readAll().futureValue must have size 1
 
@@ -60,5 +59,3 @@ class InMemoryAuditLogRepositorySpec extends PlaySpec with ScalaFutures {
     }
   }
 }
-
-

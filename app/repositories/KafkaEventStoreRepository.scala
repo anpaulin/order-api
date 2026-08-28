@@ -9,20 +9,20 @@ import scala.concurrent.Future
 import scala.jdk.CollectionConverters.*
 
 /**
- * Placeholder implementation for publishing audit log events to Apache Kafka.
+ * Placeholder implementation for publishing event store events to Apache Kafka.
  */
 @Singleton
-class KafkaAuditLogRepository @Inject()(config: Configuration) extends AuditLogRepository with Logging {
+class KafkaEventStoreRepository @Inject()(config: Configuration) extends EventStoreRepository with Logging {
 
-  private val bootstrapServers = config.getOptional[String]("app.audit-log.kafka.bootstrap-servers")
+  private val bootstrapServers = config.getOptional[String]("app.event-store.kafka.bootstrap-servers")
     .getOrElse("localhost:9092")
-  private val topic = config.getOptional[String]("app.audit-log.kafka.topic")
-    .getOrElse("order-audit-events")
+  private val topic = config.getOptional[String]("app.event-store.kafka.topic")
+    .getOrElse("order-events")
 
   // Placeholder in-memory buffer simulating Kafka topic retention for testing/replay
   private val simulatedTopic = new CopyOnWriteArrayList[OrderEvent]()
 
-  logger.info(s"Initialized KafkaAuditLogRepository with bootstrapServers=$bootstrapServers, topic=$topic")
+  logger.info(s"Initialized KafkaEventStoreRepository with bootstrapServers=$bootstrapServers, topic=$topic")
 
   override def append(event: OrderEvent): Future[Unit] = {
     logger.info(s"[Kafka Producer] Publishing event to topic '$topic': ${event.eventType} for order ${event.order.id}")
@@ -35,5 +35,3 @@ class KafkaAuditLogRepository @Inject()(config: Configuration) extends AuditLogR
     Future.successful(simulatedTopic.asScala.toList)
   }
 }
-
-
