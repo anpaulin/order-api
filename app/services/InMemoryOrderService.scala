@@ -72,6 +72,10 @@ class InMemoryOrderService @Inject()(
         logger.info(s"[OrderService] [UPDATE] Persisting update for order $id to event store (amount: ${existing.amount} -> ${updated.amount}, type: ${existing.transactionType} -> ${updated.transactionType})")
 
         // WAL: Append to event store first, only mutate state after append succeeds
+        // Note: This naive in-memory implementation would cause lost updates if two concurrent PATCH requests arrive for the same order:
+        // Req 1 -> reads old data, updates some fields, leaves others -> writes to WAL -> updates MAP
+        // Req 2 -> reads old data, updates diff fields, leaves others -> writes to WAL -> updates MAP
+        // Now changes from Req 1 are overwritten and lost in the MAP
         eventStore.append(event).map { _ =>
           state.put(updated.id, updated)
           logger.info(s"[OrderService] [UPDATE] Order $id update committed to in-memory state")
